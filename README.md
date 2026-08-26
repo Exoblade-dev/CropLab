@@ -1,8 +1,10 @@
 # CropLab
 
-CropLab is a modern, privacy-focused image cropping and basic editing web application that runs entirely in your browser.
-
-Upload an image, crop it precisely, adjust its composition, transform it, configure the output, and export the result without sending your image to a server.
+> A modern, privacy-focused image cropping and editing tool that runs entirely in your browser.
+>
+> CropLab is a client-side image editor built with React and TypeScript. It provides precise image cropping, basic editing, transformations, resizing, and export tools through a responsive interface designed for both desktop and mobile devices.
+>
+> **Your images never leave your device.** Image processing and export are performed locally in the browser using the HTML5 Canvas API.
 
 **Live Demo:** [CropLab](https://YOUR-VERCEL-DOMAIN.vercel.app)
 
