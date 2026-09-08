@@ -11,26 +11,34 @@ type Params = {
 };
 
 type Preview = {
+  key: string;
   size: number | null;
   status: ExportStatus;
   error: string | null;
 };
 
 export function useExportPreview({ image, crop, transform, settings }: Params): Preview {
+  const previewKey = image && crop
+    ? [
+        image.src,
+        crop.x, crop.y, crop.width, crop.height,
+        transform.rotation, transform.flipX, transform.flipY,
+        settings.format, settings.quality, settings.width, settings.height,
+        settings.lockAspectRatio, settings.backgroundColor,
+      ].join('|')
+    : '';
+
   const [preview, setPreview] = useState<Preview>({
+    key: '',
     size: null,
     status: 'idle',
     error: null,
   });
 
   useEffect(() => {
-    if (!image || !crop) {
-      setPreview({ size: null, status: 'idle', error: null });
-      return;
-    }
+    if (!image || !crop) return;
 
     let cancelled = false;
-    setPreview((current) => ({ ...current, status: 'preparing', error: null }));
 
     const timer = window.setTimeout(async () => {
       try {
@@ -49,11 +57,12 @@ export function useExportPreview({ image, crop, transform, settings }: Params): 
         const blob = await encodeCanvas(canvas, settings);
 
         if (!cancelled) {
-          setPreview({ size: blob.size, status: 'complete', error: null });
+          setPreview({ key: previewKey, size: blob.size, status: 'complete', error: null });
         }
       } catch (error) {
         if (!cancelled) {
           setPreview({
+            key: previewKey,
             size: null,
             status: 'error',
             error: error instanceof Error ? error.message : 'Unable to estimate output size',
@@ -66,7 +75,9 @@ export function useExportPreview({ image, crop, transform, settings }: Params): 
       cancelled = true;
       window.clearTimeout(timer);
     };
-  }, [crop, image, settings, transform]);
+  }, [crop, image, previewKey, settings, transform]);
 
+  if (!image || !crop) return { key: '', size: null, status: 'idle', error: null };
+  if (preview.key !== previewKey) return { key: previewKey, size: null, status: 'preparing', error: null };
   return preview;
 }

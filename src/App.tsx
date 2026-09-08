@@ -10,12 +10,12 @@ import { Toast } from '@/components/Toast';
 import { UploadScreen } from '@/components/UploadScreen';
 import { useEditorHistory } from '@/hooks/use-editor-history';
 import { useExportPreview } from '@/hooks/use-export-preview';
+import { useSupportedExportFormats } from '@/hooks/use-supported-export-formats';
 import { useImageLoader } from '@/hooks/use-image-loader';
 import { useKeyboardShortcuts } from '@/hooks/use-keyboard-shortcuts';
 import { useTheme } from '@/hooks/use-theme';
 import { DEFAULT_CROP_STATE } from '@/lib/image/constants';
-import { createExportCanvas, encodeCanvas, exportCanvasImage, getFileExtension, getOutputDimensions } from '@/lib/image/export';
-import { EXPORT_FORMATS, getSupportedExportFormats } from '@/lib/image/formats';
+import { createExportCanvas, encodeCanvas, getFileExtension, getOutputDimensions } from '@/lib/image/export';
 import { getCropperTransform } from '@/lib/image/transform';
 import { clampZoom, DEFAULT_ZOOM, deriveDimension, MAX_ZOOM, MIN_ZOOM, normalizeRotation, rotateBy } from '@/lib/editor/interaction';
 import type { CropState, ExportSettings, ExportStatus, ImageFormat } from '@/types/editor';
@@ -50,11 +50,7 @@ export function App() {
 
   const { loadedImage, load, clear } = useImageLoader(showToast);
   const { undoStack, redoStack, saveState, resetHistory, undo, redo } = useEditorHistory();
-  const [supportedFormats, setSupportedFormats] = useState([...EXPORT_FORMATS]);
-
-  useEffect(() => {
-    setSupportedFormats(getSupportedExportFormats());
-  }, []);
+  const supportedFormats = useSupportedExportFormats();
 
   const resetEditor = useCallback(() => {
     setCropState(DEFAULT_CROP_STATE);

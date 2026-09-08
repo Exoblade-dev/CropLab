@@ -19,7 +19,7 @@ type Props = {
   backgroundColor: string;
   estimatedSize: number | null;
   exportStatus: ExportStatus;
-  supportedFormats: ExportFormatDefinition[];
+  supportedFormats: readonly ExportFormatDefinition[];
   isLoading: boolean;
   onFormatChange: (format: ImageFormat) => void;
   onQualityChange: (quality: number) => void;
