@@ -12,6 +12,7 @@ import { useKeyboardShortcuts } from '@/hooks/use-keyboard-shortcuts';
 import { useTheme } from '@/hooks/use-theme';
 import { ASPECT_RATIOS, DEFAULT_CROP_STATE } from '@/lib/image/constants';
 import { exportCanvasImage, getFileExtension, getOutputDimensions } from '@/lib/image/export';
+import { getCropperTransform } from '@/lib/image/transform';
 import type { CropState, ImageFormat } from '@/types/editor';
 
 export function App() {
@@ -96,12 +97,7 @@ export function App() {
   const handleZoom = useCallback((zoom: number) => setCropState((prev) => ({ ...prev, zoom })), []);
   const handleRotation = useCallback((rotation: number) => setCropState((prev) => ({ ...prev, transform: { ...prev.transform, rotation } })), []);
 
-  const cropperTransform = useMemo(() => {
-    const parts: string[] = [];
-    if (cropState.transform.flipX) parts.push('scaleX(-1)');
-    if (cropState.transform.flipY) parts.push('scaleY(-1)');
-    return parts.join(' ') || undefined;
-  }, [cropState.transform]);
+  const cropperTransform = useMemo(() => getCropperTransform(cropState), [cropState]);
 
   const resetEdits = useCallback(() => {
     if (!window.confirm('Reset all edits to original state?')) return;
