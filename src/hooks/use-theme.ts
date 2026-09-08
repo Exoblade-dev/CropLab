@@ -18,8 +18,9 @@ function subscribe(onStoreChange: () => void) {
   return () => window.removeEventListener('storage', handleStorage);
 }
 
-export function useTheme() {
-  const theme = useSyncExternalStore(subscribe, readTheme, () => 'light');
+export function useTheme(): { theme: Theme; setTheme: (nextTheme: Theme) => void } {
+  const getServerSnapshot = (): Theme => 'light';
+  const theme: Theme = useSyncExternalStore(subscribe, readTheme, getServerSnapshot);
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme);
