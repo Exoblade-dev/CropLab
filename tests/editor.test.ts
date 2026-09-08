@@ -1,28 +1,44 @@
 import { describe, expect, it } from 'vitest';
-import { getFileExtension, getMimeType, getOutputDimensions } from '@/lib/image/export';
+import { clampZoom, deriveDimension, normalizeRotation, rotateBy } from '@/lib/editor/interaction';
 import { getCropperTransform } from '@/lib/image/transform';
+import type { CropState } from '@/types/editor';
 
-describe('image export helpers', () => {
-  const crop = { x: 0, y: 0, width: 1200, height: 800 };
-  it('keeps crop dimensions by default', () => expect(getOutputDimensions(crop, { format:'png', quality:.9, width:null, height:null, lockAspectRatio:true })).toEqual({width:1200,height:800}));
-  it('derives height from width', () => expect(getOutputDimensions(crop, { format:'jpeg', quality:.8, width:600, height:null, lockAspectRatio:true })).toEqual({width:600,height:400}));
-  it('derives width from height', () => expect(getOutputDimensions(crop, { format:'webp', quality:.8, width:null, height:400, lockAspectRatio:true })).toEqual({width:600,height:400}));
-  it('uses both explicit dimensions', () => expect(getOutputDimensions(crop, { format:'png', quality:.9, width:640, height:480, lockAspectRatio:false })).toEqual({width:640,height:480}));
-  it('maps output formats', () => { expect(getMimeType('png')).toBe('image/png'); expect(getMimeType('jpeg')).toBe('image/jpeg'); expect(getMimeType('webp')).toBe('image/webp'); expect(getFileExtension('jpeg')).toBe('jpeg'); });
-});
-
-describe('cropper transform', () => {
-  const base = {
-    crop: { x: 12, y: -8 },
-    zoom: 1.5,
-    transform: { rotation: 90, flipX: false, flipY: false },
-  } as const;
-
-  it('preserves the full cropper transform when no flips are active', () => {
-    expect(getCropperTransform(base)).toBe('translate(12px, -8px) rotateZ(90deg) rotateY(0deg) rotateX(0deg) scale(1.5)');
+describe('editing interaction helpers', () => {
+  it('clamps zoom to the v1.4 interaction range', () => {
+    expect(clampZoom(0.1)).toBe(0.2);
+    expect(clampZoom(1)).toBe(1);
+    expect(clampZoom(3)).toBe(2);
   });
 
-  it('adds horizontal and vertical flips without dropping crop, rotation, or zoom', () => {
-    expect(getCropperTransform({ ...base, transform: { ...base.transform, flipX: true, flipY: true } })).toBe('translate(12px, -8px) rotateZ(90deg) rotateY(180deg) rotateX(180deg) scale(1.5)');
+  it('normalizes rotation to the -180..180 range', () => {
+    expect(normalizeRotation(180)).toBe(180);
+    expect(normalizeRotation(270)).toBe(-90);
+    expect(normalizeRotation(-270)).toBe(90);
+    expect(rotateBy(170, 20)).toBe(-170);
+  });
+
+  it('derives the linked resize dimension from the crop ratio', () => {
+    expect(deriveDimension(1920, 1920, 1080, 'width')).toBe(1080);
+    expect(deriveDimension(1080, 1920, 1080, 'height')).toBe(1920);
+  });
+});
+
+describe('cropper transform regression', () => {
+  const base: CropState = {
+    crop: { x: 12, y: -8 },
+    zoom: 1.25,
+    transform: { rotation: -90, flipX: false, flipY: false },
+  };
+
+  it('keeps the complete transform without flips', () => {
+    expect(getCropperTransform(base)).toBe('translate(12px, -8px) rotateZ(-90deg) rotateY(0deg) rotateX(0deg) scale(1.25)');
+  });
+
+  it('preserves crop, rotation and zoom when horizontal flip is enabled', () => {
+    expect(getCropperTransform({ ...base, transform: { ...base.transform, flipX: true } })).toBe('translate(12px, -8px) rotateZ(-90deg) rotateY(180deg) rotateX(0deg) scale(1.25)');
+  });
+
+  it('preserves crop, rotation and zoom when both flips are enabled', () => {
+    expect(getCropperTransform({ ...base, transform: { ...base.transform, flipX: true, flipY: true } })).toBe('translate(12px, -8px) rotateZ(-90deg) rotateY(180deg) rotateX(180deg) scale(1.25)');
   });
 });

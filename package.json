@@ -1,9 +1,30 @@
 {
-  "name":"crop-lab",
-  "private":true,
-  "version":"1.1.0",
-  "type":"module",
-  "scripts":{"dev":"next dev","build":"next build","start":"next start","lint":"oxlint","typecheck":"tsc --noEmit","test":"vitest run","test:watch":"vitest"},
-  "dependencies":{"next":"^16.3.4","react":"^19.2.8","react-dom":"^19.2.8","react-easy-crop":"^6.2.3","lucide-react":"^1.43.0"},
-  "devDependencies":{"@types/node":"^24.13.3","@types/react":"^19.2.18","@types/react-dom":"^19.2.4","oxlint":"^1.79.0","typescript":"~6.0.2","vitest":"^5.0.0"}
+  "name": "crop-lab",
+  "private": true,
+  "version": "1.4.0",
+  "type": "module",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "oxlint",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "next": "^16.3.4",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8",
+    "react-easy-crop": "^6.2.3",
+    "lucide-react": "^1.43.0"
+  },
+  "devDependencies": {
+    "@types/node": "^24.13.3",
+    "@types/react": "^19.2.18",
+    "@types/react-dom": "^19.2.4",
+    "oxlint": "^1.79.0",
+    "typescript": "~6.0.2",
+    "vitest": "^5.0.0"
+  }
 }
