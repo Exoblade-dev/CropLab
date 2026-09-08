@@ -1,67 +1,18 @@
-import { Download } from 'lucide-react';
+import { Download, Lock, Unlock } from 'lucide-react';
 import type { ImageFormat } from '@/types/editor';
 
-type Props = {
-  originalWidth: number;
-  originalHeight: number;
-  fileSize: number;
-  cropWidth: number | null;
-  cropHeight: number | null;
-  outputWidth: number | null;
-  outputHeight: number | null;
-  format: ImageFormat;
-  quality: number;
-  width: number | null;
-  height: number | null;
-  lockAspectRatio: boolean;
-  isLoading: boolean;
-  onFormatChange: (format: ImageFormat) => void;
-  onQualityChange: (quality: number) => void;
-  onWidthChange: (value: string) => void;
-  onHeightChange: (value: string) => void;
-  onLockToggle: () => void;
-  onDownload: () => void;
-};
+type Props = { originalWidth: number; originalHeight: number; fileSize: number; cropWidth: number | null; cropHeight: number | null; outputWidth: number | null; outputHeight: number | null; format: ImageFormat; quality: number; width: number | null; height: number | null; lockAspectRatio: boolean; isLoading: boolean; onFormatChange: (format: ImageFormat) => void; onQualityChange: (quality: number) => void; onWidthChange: (value: string) => void; onHeightChange: (value: string) => void; onLockToggle: () => void; onDownload: () => void; };
 
-export function ExportPanel({
-  originalWidth,
-  originalHeight,
-  fileSize,
-  cropWidth,
-  cropHeight,
-  outputWidth,
-  outputHeight,
-  format,
-  quality,
-  width,
-  height,
-  lockAspectRatio,
-  isLoading,
-  onFormatChange,
-  onQualityChange,
-  onWidthChange,
-  onHeightChange,
-  onLockToggle,
-  onDownload,
-}: Props) {
+export function ExportPanel({ originalWidth, originalHeight, fileSize, cropWidth, cropHeight, outputWidth, outputHeight, format, quality, width, height, lockAspectRatio, isLoading, onFormatChange, onQualityChange, onWidthChange, onHeightChange, onLockToggle, onDownload }: Props) {
   return (
-    <section className="export-section" aria-label="Export image">
-      <div className="export-heading">
-        <div><span className="eyebrow">Output</span><h2>Export image</h2></div>
-        <span className="export-note">Processed locally</span>
-      </div>
-      <div className="image-info">
-        <div className="info-item"><span className="info-label">Original</span><strong>{originalWidth} × {originalHeight}</strong></div>
-        <div className="info-item"><span className="info-label">Crop</span><strong>{cropWidth && cropHeight ? `${Math.round(cropWidth)} × ${Math.round(cropHeight)}` : '--'}</strong></div>
-        <div className="info-item"><span className="info-label">Output</span><strong>{outputWidth && outputHeight ? `${outputWidth} × ${outputHeight}` : '--'}</strong></div>
-        <div className="info-item"><span className="info-label">Source size</span><strong>{(fileSize / 1024).toFixed(1)} KB</strong></div>
-      </div>
-      <div className="export-controls">
-        <div className="format-group"><label htmlFor="format-select">Format</label><select id="format-select" value={format} onChange={(event) => onFormatChange(event.target.value as ImageFormat)}><option value="png">PNG</option><option value="jpeg">JPEG</option><option value="webp">WebP</option></select></div>
-        {format !== 'png' && <div className="quality-group"><label htmlFor="quality-slider">Quality <span>{Math.round(quality * 100)}%</span></label><input type="range" id="quality-slider" min="0.1" max="1" step="0.01" value={quality} onChange={(event) => onQualityChange(Number(event.target.value))} /></div>}
-        <div className="dimensions-group"><label>Dimensions (px)</label><div className="dimensions-inputs"><input type="number" placeholder="Width" value={width ?? ''} onChange={(event) => onWidthChange(event.target.value)} min="1" className="dimension-input" aria-label="Custom width" /><button className={`lock-btn ${lockAspectRatio ? 'active' : ''}`} onClick={onLockToggle} title={lockAspectRatio ? 'Unlock aspect ratio' : 'Lock aspect ratio'} aria-label={lockAspectRatio ? 'Unlock' : 'Lock aspect ratio'}>{lockAspectRatio ? 'Lock' : 'Free'}</button><input type="number" placeholder="Height" value={height ?? ''} onChange={(event) => onHeightChange(event.target.value)} min="1" className="dimension-input" aria-label="Custom height" /></div></div>
-      </div>
+    <aside className="export-panel" aria-label="Export controls">
+      <div className="panel-heading"><div><div className="panel-label">Export</div><h2>Output</h2></div><span className="local-badge">Local</span></div>
+      <section className="export-section-block"><label htmlFor="format-select">Format</label><select id="format-select" value={format} onChange={(event) => onFormatChange(event.target.value as ImageFormat)}><option value="png">PNG</option><option value="jpeg">JPEG</option><option value="webp">WebP</option></select></section>
+      <section className="export-section-block"><div className="section-label-row"><label>Dimensions</label><button className={`mini-lock ${lockAspectRatio ? 'active' : ''}`} onClick={onLockToggle} title={lockAspectRatio ? 'Unlock aspect ratio' : 'Lock aspect ratio'}>{lockAspectRatio ? <Lock size={13} /> : <Unlock size={13} />}{lockAspectRatio ? 'Locked' : 'Free'}</button></div><div className="dimension-stack"><input type="number" placeholder="Width" value={width ?? ''} onChange={(event) => onWidthChange(event.target.value)} min="1" aria-label="Output width" /><span>×</span><input type="number" placeholder="Height" value={height ?? ''} onChange={(event) => onHeightChange(event.target.value)} min="1" aria-label="Output height" /></div></section>
+      <section className="export-section-block"><div className="section-label-row"><label htmlFor="quality-slider">Quality</label><span>{Math.round(quality * 100)}%</span></div><input className="export-range" type="range" id="quality-slider" min="0.1" max="1" step="0.01" value={quality} onChange={(event) => onQualityChange(Number(event.target.value))} disabled={format === 'png'} /><small>{format === 'png' ? 'PNG uses lossless output.' : 'Higher quality keeps more detail and file weight.'}</small></section>
+      <section className="export-stats"><div><span>Crop</span><strong>{cropWidth && cropHeight ? `${Math.round(cropWidth)} × ${Math.round(cropHeight)}` : '--'}</strong></div><div><span>Output</span><strong>{outputWidth && outputHeight ? `${outputWidth} × ${outputHeight}` : '--'}</strong></div><div><span>Source</span><strong>{originalWidth} × {originalHeight}</strong></div><div><span>Source size</span><strong>{(fileSize / 1024).toFixed(1)} KB</strong></div></section>
+      <div className="export-spacer" />
       <button className="download-btn" onClick={onDownload} disabled={isLoading || !cropWidth || !cropHeight}>{isLoading ? 'Processing…' : <><Download size={17} /> Download image</>}</button>
-    </section>
+    </aside>
   );
 }

@@ -1,85 +1,33 @@
-import { FlipHorizontal, FlipVertical, Lock, Unlock, ZoomIn, ZoomOut } from 'lucide-react';
+import { Crop, SlidersHorizontal, Sparkles, StretchHorizontal } from 'lucide-react';
 import { ASPECT_RATIOS } from '@/lib/image/constants';
 
-type Props = {
-  selectedAspect: number | null;
-  zoom: number;
-  rotation: number;
-  flipX: boolean;
-  flipY: boolean;
-  lockAspectRatio: boolean;
-  onAspectChange: (value: number | null, label: string) => void;
-  onZoomChange: (value: number) => void;
-  onZoomCommit: () => void;
-  onRotationChange: (value: number) => void;
-  onRotationCommit: () => void;
-  onFlip: (axis: 'x' | 'y') => void;
-  onLockToggle: () => void;
-};
+export type EditorTool = 'crop' | 'resize' | 'compress' | 'adjust';
+type Props = { activeTool: EditorTool; selectedAspect: number | null; onToolChange: (tool: EditorTool) => void; onAspectChange: (value: number | null, label: string) => void; };
 
-export function EditorSidebar({
-  selectedAspect,
-  zoom,
-  rotation,
-  flipX,
-  flipY,
-  lockAspectRatio,
-  onAspectChange,
-  onZoomChange,
-  onZoomCommit,
-  onRotationChange,
-  onRotationCommit,
-  onFlip,
-  onLockToggle,
-}: Props) {
+const tools: { id: EditorTool; label: string; description: string; icon: typeof Crop }[] = [
+  { id: 'crop', label: 'Crop', description: 'Frame and aspect ratio', icon: Crop },
+  { id: 'resize', label: 'Resize', description: 'Set output dimensions', icon: StretchHorizontal },
+  { id: 'compress', label: 'Compress', description: 'Reduce file weight', icon: Sparkles },
+  { id: 'adjust', label: 'Adjust', description: 'Tune image appearance', icon: SlidersHorizontal },
+];
+
+export function EditorSidebar({ activeTool, selectedAspect, onToolChange, onAspectChange }: Props) {
   return (
-    <aside className="editor-sidebar" aria-label="Editor controls">
-      <div className="sidebar-heading">
-        <div>
-          <span className="eyebrow">Adjust</span>
-          <h2>Image controls</h2>
-        </div>
-      </div>
-
-      <div className="sidebar-section">
-        <h3>Aspect ratio</h3>
-        <div className="aspect-ratio-list">
-          {ASPECT_RATIOS.map((ratio) => (
-            <button key={ratio.label} className={`aspect-btn ${selectedAspect === ratio.value ? 'active' : ''}`} onClick={() => onAspectChange(ratio.value, ratio.label)}>
-              {ratio.label}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      <div className="sidebar-section">
-        <div className="control-heading"><h3>Zoom</h3><span>{Math.round(zoom * 100)}%</span></div>
-        <div className="range-row">
-          <button className="zoom-btn" onClick={() => { onZoomCommit(); onZoomChange(Math.max(0.1, zoom - 0.1)); }} title="Zoom out" aria-label="Zoom out"><ZoomOut size={15} /></button>
-          <input type="range" min="0.1" max="5" step="0.05" value={zoom} onChange={(event) => onZoomChange(Number(event.target.value))} onPointerDown={onZoomCommit} aria-label="Zoom level" />
-          <button className="zoom-btn" onClick={() => { onZoomCommit(); onZoomChange(Math.min(5, zoom + 0.1)); }} title="Zoom in" aria-label="Zoom in"><ZoomIn size={15} /></button>
-        </div>
-      </div>
-
-      <div className="sidebar-section">
-        <div className="control-heading"><h3>Rotation</h3><span>{rotation}°</span></div>
-        <input className="full-range" type="range" min="-180" max="180" step="1" value={rotation} onChange={(event) => onRotationChange(Number(event.target.value))} onPointerDown={onRotationCommit} aria-label="Rotation" />
-      </div>
-
-      <div className="sidebar-section">
-        <div className="control-heading"><h3>Flip</h3><span>Axis</span></div>
-        <div className="flip-toggle-group">
-          <button className={`flip-action ${flipX ? 'active' : ''}`} onClick={() => onFlip('x')}><FlipHorizontal size={15} /> Horizontal</button>
-          <button className={`flip-action ${flipY ? 'active' : ''}`} onClick={() => onFlip('y')}><FlipVertical size={15} /> Vertical</button>
-        </div>
-      </div>
-
-      <div className="sidebar-section sidebar-lock">
-        <button className="lock-control" onClick={onLockToggle} aria-label={lockAspectRatio ? 'Unlock export aspect ratio' : 'Lock export aspect ratio'}>
-          {lockAspectRatio ? <Lock size={15} /> : <Unlock size={15} />}
-          <span>{lockAspectRatio ? 'Output ratio locked' : 'Output ratio unlocked'}</span>
-        </button>
+    <aside className="tools-panel" aria-label="Primary editing tools">
+      <div className="panel-label">Edit</div>
+      <nav className="tool-list" aria-label="Editing sections">
+        {tools.map(({ id, label, description, icon: Icon }) => <button key={id} className={`tool-item ${activeTool === id ? 'active' : ''}`} onClick={() => onToolChange(id)} aria-pressed={activeTool === id}><span className="tool-icon"><Icon size={17} /></span><span><strong>{label}</strong><small>{description}</small></span></button>)}
+      </nav>
+      <div className="tool-detail">
+        {activeTool === 'crop' && <div className="tool-detail-section"><div className="detail-kicker">Crop</div><h2>Aspect ratio</h2><p>Choose a frame for the crop area.</p><div className="aspect-ratio-list">{ASPECT_RATIOS.map((ratio) => <button key={ratio.label} className={`aspect-btn ${selectedAspect === ratio.value ? 'active' : ''}`} onClick={() => onAspectChange(ratio.value, ratio.label)}>{ratio.label}</button>)}</div></div>}
+        {activeTool === 'resize' && <ToolNotice title="Resize" body="Set exact output dimensions in the Export panel. The canvas preview stays focused on the crop." />}
+        {activeTool === 'compress' && <ToolNotice title="Compress" body="Choose JPEG or WebP and tune quality in the Export panel. Output settings remain visible while you edit." />}
+        {activeTool === 'adjust' && <ToolNotice title="Adjust" body="Brightness, contrast, saturation, exposure, blur, and sharpen controls are reserved for the next adjustment pass." disabled />}
       </div>
     </aside>
   );
+}
+
+function ToolNotice({ title, body, disabled = false }: { title: string; body: string; disabled?: boolean }) {
+  return <div className={`tool-detail-section ${disabled ? 'is-muted' : ''}`}><div className="detail-kicker">{title}</div><h2>{title === 'Adjust' ? 'Visual adjustments' : 'Use the export panel'}</h2><p>{body}</p>{disabled && <span className="coming-soon">Next adjustment pass</span>}</div>;
 }
