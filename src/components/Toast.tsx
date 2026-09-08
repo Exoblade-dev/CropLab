@@ -1,4 +1,1 @@
-export function Toast({ message, visible }: { message: string; visible: boolean }) {
-  if (!visible) return null;
-  return <div className="toast" role="status" aria-live="polite">{message}</div>;
-}
+export function Toast({ visible, message }: { visible: boolean; message: string }) { if (!visible) return null; return <div className="toast" role="status">{message}</div>; }

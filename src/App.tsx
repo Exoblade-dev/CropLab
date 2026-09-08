@@ -15,7 +15,7 @@ import { useTheme } from '@/hooks/use-theme';
 import { DEFAULT_CROP_STATE } from '@/lib/image/constants';
 import { exportCanvasImage, getFileExtension, getOutputDimensions } from '@/lib/image/export';
 import { getCropperTransform } from '@/lib/image/transform';
-import { clampZoom, DEFAULT_ZOOM, deriveDimension, FIT_ZOOM, MAX_ZOOM, MIN_ZOOM, normalizeRotation, rotateBy } from '@/lib/editor/interaction';
+import { clampZoom, DEFAULT_ZOOM, deriveDimension, MAX_ZOOM, MIN_ZOOM, normalizeRotation, rotateBy } from '@/lib/editor/interaction';
 import type { CropState, ImageFormat } from '@/types/editor';
 
 export function App() {
@@ -80,7 +80,6 @@ export function App() {
   const zoomIn = useCallback(() => commit({ ...cropState, zoom: clampZoom(cropState.zoom + 0.1) }), [commit, cropState]);
   const zoomOut = useCallback(() => commit({ ...cropState, zoom: clampZoom(cropState.zoom - 0.1) }), [commit, cropState]);
   const resetZoom = useCallback(() => commit({ ...cropState, zoom: DEFAULT_ZOOM }), [commit, cropState]);
-  const fitZoom = useCallback(() => commit({ ...cropState, zoom: FIT_ZOOM }), [commit, cropState]);
 
   useKeyboardShortcuts({ onUndo: performUndo, onRedo: performRedo, onZoomIn: zoomIn, onZoomOut: zoomOut, onZoomReset: resetZoom, onZoomPreset: commitZoomPreset });
 
