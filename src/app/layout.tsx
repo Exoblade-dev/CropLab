@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import '../index.css';
 import '../App.css';
+import '../export.css';
 
 export const metadata: Metadata = {
   title: 'CropLab — Free Online Image Cropper',

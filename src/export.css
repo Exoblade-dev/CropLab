@@ -1,0 +1,74 @@
+.export-status {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 30px;
+  margin-top: 2px;
+  padding: 7px 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--muted);
+  background: var(--surface-2);
+  font-size: 9px;
+  font-weight: 600;
+}
+.export-status-dot {
+  width: 6px;
+  height: 6px;
+  flex: 0 0 6px;
+  border-radius: 50%;
+  background: var(--muted);
+}
+.export-status-preparing .export-status-dot,
+.export-status-cropping .export-status-dot,
+.export-status-resizing .export-status-dot,
+.export-status-encoding .export-status-dot,
+.export-status-downloading .export-status-dot {
+  background: var(--text);
+  animation: export-pulse 1s ease-in-out infinite;
+}
+.export-status-complete {
+  color: var(--text);
+}
+.export-status-complete .export-status-dot {
+  background: var(--text);
+}
+.export-status-error {
+  color: var(--text);
+  border-color: var(--border-strong);
+}
+@keyframes export-pulse {
+  50% { opacity: .35; transform: scale(.75); }
+}
+
+.quality-scale {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 6px;
+  color: var(--muted);
+  font-size: 8px;
+}
+.quality-values {
+  margin-top: 1px;
+  color: var(--faint);
+}
+.background-control {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+}
+.background-control input[type='color'] {
+  width: 36px;
+  height: 30px;
+  padding: 2px;
+  border: 1px solid var(--border-strong);
+  border-radius: 6px;
+  background: var(--surface);
+  cursor: pointer;
+}
+.background-control span {
+  color: var(--muted);
+  font-size: 9px;
+  font-variant-numeric: tabular-nums;
+}

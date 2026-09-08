@@ -9,14 +9,22 @@ import { ExportPanel } from '@/components/ExportPanel';
 import { Toast } from '@/components/Toast';
 import { UploadScreen } from '@/components/UploadScreen';
 import { useEditorHistory } from '@/hooks/use-editor-history';
+import { useExportPreview } from '@/hooks/use-export-preview';
 import { useImageLoader } from '@/hooks/use-image-loader';
 import { useKeyboardShortcuts } from '@/hooks/use-keyboard-shortcuts';
 import { useTheme } from '@/hooks/use-theme';
 import { DEFAULT_CROP_STATE } from '@/lib/image/constants';
-import { exportCanvasImage, getFileExtension, getOutputDimensions } from '@/lib/image/export';
+import { createExportCanvas, encodeCanvas, exportCanvasImage, getFileExtension, getOutputDimensions } from '@/lib/image/export';
+import { EXPORT_FORMATS, getSupportedExportFormats } from '@/lib/image/formats';
 import { getCropperTransform } from '@/lib/image/transform';
 import { clampZoom, DEFAULT_ZOOM, deriveDimension, MAX_ZOOM, MIN_ZOOM, normalizeRotation, rotateBy } from '@/lib/editor/interaction';
-import type { CropState, ImageFormat } from '@/types/editor';
+import type { CropState, ExportSettings, ExportStatus, ImageFormat } from '@/types/editor';
+
+const DEFAULT_BACKGROUND = '#ffffff';
+
+function nextFrame(): Promise<void> {
+  return new Promise((resolve) => window.requestAnimationFrame(() => resolve()));
+}
 
 export function App() {
   const { theme, setTheme } = useTheme();
@@ -31,6 +39,8 @@ export function App() {
   const [customWidth, setCustomWidth] = useState<number | null>(null);
   const [customHeight, setCustomHeight] = useState<number | null>(null);
   const [lockAspectRatio, setLockAspectRatio] = useState(true);
+  const [backgroundColor, setBackgroundColor] = useState(DEFAULT_BACKGROUND);
+  const [downloadStatus, setDownloadStatus] = useState<ExportStatus>('idle');
   const interactionStartRef = useRef<CropState | null>(null);
 
   const showToast = useCallback((message: string) => {
@@ -40,29 +50,77 @@ export function App() {
 
   const { loadedImage, load, clear } = useImageLoader(showToast);
   const { undoStack, redoStack, saveState, resetHistory, undo, redo } = useEditorHistory();
-
-  const resetEditor = useCallback(() => {
-    setCropState(DEFAULT_CROP_STATE); setCroppedAreaPixels(null); setSelectedAspect(null); setCustomWidth(null); setCustomHeight(null); setExportFormat('png'); setExportQuality(0.9); setLockAspectRatio(true); setActiveTool('crop'); resetHistory();
-  }, [resetHistory]);
-
-  const loadAndReset = useCallback(async (file: File) => { const image = await load(file); if (!image) return; resetEditor(); showToast('Image loaded successfully'); }, [load, resetEditor, showToast]);
+  const [supportedFormats, setSupportedFormats] = useState([...EXPORT_FORMATS]);
 
   useEffect(() => {
-    const handlePaste = (event: ClipboardEvent) => { for (const item of Array.from(event.clipboardData?.items ?? [])) { if (!item.type.includes('image')) continue; const file = item.getAsFile(); if (file) void loadAndReset(file); break; } };
-    window.addEventListener('paste', handlePaste); return () => window.removeEventListener('paste', handlePaste);
+    setSupportedFormats(getSupportedExportFormats());
+  }, []);
+
+  const resetEditor = useCallback(() => {
+    setCropState(DEFAULT_CROP_STATE);
+    setCroppedAreaPixels(null);
+    setSelectedAspect(null);
+    setCustomWidth(null);
+    setCustomHeight(null);
+    setExportFormat('png');
+    setExportQuality(0.9);
+    setLockAspectRatio(true);
+    setBackgroundColor(DEFAULT_BACKGROUND);
+    setDownloadStatus('idle');
+    resetHistory();
+  }, [resetHistory]);
+
+  const loadAndReset = useCallback(async (file: File) => {
+    const image = await load(file);
+    if (!image) return;
+    resetEditor();
+    showToast('Image loaded successfully');
+  }, [load, resetEditor, showToast]);
+
+  useEffect(() => {
+    const handlePaste = (event: ClipboardEvent) => {
+      for (const item of Array.from(event.clipboardData?.items ?? [])) {
+        if (!item.type.includes('image')) continue;
+        const file = item.getAsFile();
+        if (file) void loadAndReset(file);
+        break;
+      }
+    };
+    window.addEventListener('paste', handlePaste);
+    return () => window.removeEventListener('paste', handlePaste);
   }, [loadAndReset]);
 
-  const performUndo = useCallback(() => { const previous = undo(cropState); if (previous) { setCropState(previous); showToast('Undo'); } }, [cropState, undo, showToast]);
-  const performRedo = useCallback(() => { const next = redo(cropState); if (next) { setCropState(next); showToast('Redo'); } }, [cropState, redo, showToast]);
+  const performUndo = useCallback(() => {
+    const previous = undo(cropState);
+    if (previous) {
+      setCropState(previous);
+      showToast('Undo');
+    }
+  }, [cropState, undo, showToast]);
 
-  const commit = useCallback((next: CropState) => { saveState(cropState); setCropState(next); }, [cropState, saveState]);
+  const performRedo = useCallback(() => {
+    const next = redo(cropState);
+    if (next) {
+      setCropState(next);
+      showToast('Redo');
+    }
+  }, [cropState, redo, showToast]);
+
+  const commit = useCallback((next: CropState) => {
+    saveState(cropState);
+    setCropState(next);
+  }, [cropState, saveState]);
 
   const rotate = useCallback((amount: number) => {
     commit({ ...cropState, transform: { ...cropState.transform, rotation: rotateBy(cropState.transform.rotation, amount) } });
     showToast(amount > 0 ? 'Rotated right' : 'Rotated left');
   }, [commit, cropState, showToast]);
 
-  const flip = useCallback((axis: 'x' | 'y') => { const key = axis === 'x' ? 'flipX' : 'flipY'; commit({ ...cropState, transform: { ...cropState.transform, [key]: !cropState.transform[key] } }); showToast(axis === 'x' ? 'Flipped horizontally' : 'Flipped vertically'); }, [commit, cropState, showToast]);
+  const flip = useCallback((axis: 'x' | 'y') => {
+    const key = axis === 'x' ? 'flipX' : 'flipY';
+    commit({ ...cropState, transform: { ...cropState.transform, [key]: !cropState.transform[key] } });
+    showToast(axis === 'x' ? 'Flipped horizontally' : 'Flipped vertically');
+  }, [commit, cropState, showToast]);
 
   const beginInteraction = useCallback(() => { interactionStartRef.current = cropState; }, [cropState]);
   const endInteraction = useCallback(() => {
@@ -92,32 +150,118 @@ export function App() {
   }, [cropState, saveState, showToast]);
 
   const handleAspectChange = useCallback((value: number | null, label: string) => {
-    saveState(cropState); setSelectedAspect(value); setCroppedAreaPixels(null); showToast(`Aspect ratio set to ${label}`);
+    saveState(cropState);
+    setSelectedAspect(value);
+    setCroppedAreaPixels(null);
+    showToast(`Aspect ratio set to ${label}`);
   }, [cropState, saveState, showToast]);
 
   const handleDimension = useCallback((axis: 'width' | 'height', value: string) => {
-    if (value === '') { if (axis === 'width') setCustomWidth(null); else setCustomHeight(null); return; }
-    const num = Number.parseInt(value, 10); if (!Number.isFinite(num) || num <= 0) return;
-    if (!lockAspectRatio || !croppedAreaPixels) { if (axis === 'width') setCustomWidth(num); else setCustomHeight(num); return; }
-    if (axis === 'width') { setCustomWidth(num); setCustomHeight(deriveDimension(num, croppedAreaPixels.width, croppedAreaPixels.height, 'width')); }
-    else { setCustomHeight(num); setCustomWidth(deriveDimension(num, croppedAreaPixels.width, croppedAreaPixels.height, 'height')); }
+    if (value === '') {
+      if (axis === 'width') setCustomWidth(null);
+      else setCustomHeight(null);
+      return;
+    }
+    const num = Number.parseInt(value, 10);
+    if (!Number.isFinite(num) || num <= 0) return;
+    if (!lockAspectRatio || !croppedAreaPixels) {
+      if (axis === 'width') setCustomWidth(num);
+      else setCustomHeight(num);
+      return;
+    }
+    if (axis === 'width') {
+      setCustomWidth(num);
+      setCustomHeight(deriveDimension(num, croppedAreaPixels.width, croppedAreaPixels.height, 'width'));
+    } else {
+      setCustomHeight(num);
+      setCustomWidth(deriveDimension(num, croppedAreaPixels.width, croppedAreaPixels.height, 'height'));
+    }
   }, [croppedAreaPixels, lockAspectRatio]);
 
-  const resetEdits = useCallback(() => { if (!window.confirm('Reset all edits to original state?')) return; resetEditor(); showToast('Reset to original'); }, [resetEditor, showToast]);
-  const clearImage = useCallback(() => { if (!window.confirm('Clear current image and return to upload screen?')) return; clear(); resetEditor(); showToast('Image cleared'); }, [clear, resetEditor, showToast]);
-  const replaceImage = useCallback(() => { if (undoStack.length || redoStack.length) { if (!window.confirm('Replace image? This will discard current edits.')) return; } document.getElementById('replace-image-input')?.click(); }, [redoStack.length, undoStack.length]);
+  const resetEdits = useCallback(() => {
+    if (!window.confirm('Reset all edits to original state?')) return;
+    resetEditor();
+    showToast('Reset to original');
+  }, [resetEditor, showToast]);
+
+  const clearImage = useCallback(() => {
+    if (!window.confirm('Clear current image and return to upload screen?')) return;
+    clear();
+    resetEditor();
+    showToast('Image cleared');
+  }, [clear, resetEditor, showToast]);
+
+  const replaceImage = useCallback(() => {
+    if (undoStack.length || redoStack.length) {
+      if (!window.confirm('Replace image? This will discard current edits.')) return;
+    }
+    document.getElementById('replace-image-input')?.click();
+  }, [redoStack.length, undoStack.length]);
+
+  const exportSettings: ExportSettings = useMemo(() => ({
+    format: exportFormat,
+    quality: exportQuality,
+    width: customWidth,
+    height: customHeight,
+    lockAspectRatio,
+    backgroundColor,
+  }), [backgroundColor, customHeight, customWidth, exportFormat, exportQuality, lockAspectRatio]);
+
+  const preview = useExportPreview({
+    image: loadedImage?.element ?? null,
+    crop: croppedAreaPixels,
+    transform: cropState.transform,
+    settings: exportSettings,
+  });
+
+  const handleFormatChange = useCallback((format: ImageFormat) => {
+    setExportFormat(format);
+    if (format === 'png') setExportQuality(0.9);
+    showToast(`Format set to ${format.toUpperCase()}`);
+  }, [showToast]);
 
   const handleDownload = useCallback(async () => {
-    if (!loadedImage || !croppedAreaPixels) { showToast('No image to export'); return; }
-    setIsLoading(true);
-    try {
-      const settings = { format: exportFormat, quality: exportQuality, width: customWidth, height: customHeight, lockAspectRatio };
-      const blob = await exportCanvasImage(loadedImage.element, croppedAreaPixels, cropState.transform, settings);
-      const url = URL.createObjectURL(blob); const anchor = document.createElement('a'); anchor.href = url; anchor.download = `croplab-${Date.now()}.${getFileExtension(exportFormat)}`; anchor.click(); window.setTimeout(() => URL.revokeObjectURL(url), 1000); showToast('Image downloaded successfully');
-    } catch (error) { console.error('Export error:', error); showToast('Failed to export image. Please try again.'); } finally { setIsLoading(false); }
-  }, [cropState.transform, croppedAreaPixels, customHeight, customWidth, exportFormat, exportQuality, loadedImage, lockAspectRatio, showToast]);
+    if (!loadedImage || !croppedAreaPixels) {
+      showToast('No image to export');
+      return;
+    }
 
-  const outputDimensions = croppedAreaPixels ? getOutputDimensions(croppedAreaPixels, { format: exportFormat, quality: exportQuality, width: customWidth, height: customHeight, lockAspectRatio }) : null;
+    setIsLoading(true);
+    setDownloadStatus('preparing');
+
+    try {
+      await nextFrame();
+      setDownloadStatus('cropping');
+      await nextFrame();
+      setDownloadStatus('resizing');
+      const canvas = createExportCanvas(loadedImage.element, croppedAreaPixels, cropState.transform, exportSettings);
+      await nextFrame();
+      setDownloadStatus('encoding');
+      const blob = await encodeCanvas(canvas, exportSettings);
+      setDownloadStatus('downloading');
+
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement('a');
+      anchor.href = url;
+      anchor.download = `croplab-${Date.now()}.${getFileExtension(exportFormat)}`;
+      anchor.click();
+      window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+
+      setDownloadStatus('complete');
+      showToast('Export complete');
+      window.setTimeout(() => setDownloadStatus('idle'), 1400);
+    } catch (error) {
+      console.error('Export error:', error);
+      setDownloadStatus('error');
+      showToast(error instanceof Error ? error.message : 'Failed to export image. Please try again.');
+      window.setTimeout(() => setDownloadStatus('idle'), 2000);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [cropState.transform, croppedAreaPixels, exportFormat, exportSettings, loadedImage, showToast]);
+
+  const outputDimensions = croppedAreaPixels ? getOutputDimensions(croppedAreaPixels, exportSettings) : null;
+  const visibleExportStatus = downloadStatus === 'idle' ? preview.status : downloadStatus;
 
   return <div className={`app ${theme}`}>
     <AppHeader theme={theme} onToggle={() => setTheme(theme === 'light' ? 'dark' : 'light')} />
@@ -135,7 +279,32 @@ export function App() {
               </div>
               <div className="canvas-footer"><span>Persistent transforms stay available above the canvas.</span><span>Edits stay in this browser.</span></div>
             </section>
-            <ExportPanel originalWidth={loadedImage.element.naturalWidth} originalHeight={loadedImage.element.naturalHeight} fileSize={loadedImage.fileSize} cropWidth={croppedAreaPixels?.width ?? null} cropHeight={croppedAreaPixels?.height ?? null} outputWidth={outputDimensions?.width ?? null} outputHeight={outputDimensions?.height ?? null} format={exportFormat} quality={exportQuality} width={customWidth} height={customHeight} lockAspectRatio={lockAspectRatio} isLoading={isLoading} onFormatChange={(format) => { setExportFormat(format); showToast(`Format set to ${format.toUpperCase()}`); }} onQualityChange={setExportQuality} onWidthChange={(value) => handleDimension('width', value)} onHeightChange={(value) => handleDimension('height', value)} onLockToggle={() => setLockAspectRatio((prev) => !prev)} onDownload={() => void handleDownload()} />
+            <ExportPanel
+              originalWidth={loadedImage.element.naturalWidth}
+              originalHeight={loadedImage.element.naturalHeight}
+              fileSize={loadedImage.fileSize}
+              cropWidth={croppedAreaPixels?.width ?? null}
+              cropHeight={croppedAreaPixels?.height ?? null}
+              outputWidth={outputDimensions?.width ?? null}
+              outputHeight={outputDimensions?.height ?? null}
+              format={exportFormat}
+              quality={exportQuality}
+              width={customWidth}
+              height={customHeight}
+              lockAspectRatio={lockAspectRatio}
+              backgroundColor={backgroundColor}
+              estimatedSize={preview.size}
+              exportStatus={visibleExportStatus}
+              supportedFormats={supportedFormats}
+              isLoading={isLoading}
+              onFormatChange={handleFormatChange}
+              onQualityChange={setExportQuality}
+              onWidthChange={(value) => handleDimension('width', value)}
+              onHeightChange={(value) => handleDimension('height', value)}
+              onLockToggle={() => setLockAspectRatio((prev) => !prev)}
+              onBackgroundChange={setBackgroundColor}
+              onDownload={() => void handleDownload()}
+            />
           </div>
         </div>
       </>}
