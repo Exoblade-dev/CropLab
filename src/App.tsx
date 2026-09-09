@@ -7,6 +7,7 @@ import { EditorSidebar, type EditorTool } from '@/components/EditorSidebar';
 import { EditorToolbar } from '@/components/EditorToolbar';
 import { ExportPanel } from '@/components/ExportPanel';
 import { HistoryPanel } from '@/components/HistoryPanel';
+import { MobileEditorControls } from '@/components/MobileEditorControls';
 import { Toast } from '@/components/Toast';
 import { UploadScreen } from '@/components/UploadScreen';
 import { useEditorHistory } from '@/hooks/use-editor-history';
@@ -22,6 +23,8 @@ import { clampZoom, DEFAULT_ZOOM, deriveDimension, MAX_ZOOM, MIN_ZOOM, normalize
 import type { CropState, EditorSnapshot, ExportSettings, ExportStatus, ImageFormat } from '@/types/editor';
 
 const DEFAULT_BACKGROUND = '#ffffff';
+
+type MobilePanel = EditorTool | 'more' | 'export' | null;
 
 const DEFAULT_EDITOR_SNAPSHOT: EditorSnapshot = {
   cropState: DEFAULT_CROP_STATE,
@@ -42,6 +45,7 @@ function nextFrame(): Promise<void> {
 export function App() {
   const { theme, setTheme } = useTheme();
   const [activeTool, setActiveTool] = useState<EditorTool | null>('crop');
+  const [mobilePanel, setMobilePanel] = useState<MobilePanel>(null);
   const [toast, setToast] = useState({ visible: false, message: '' });
   const [isLoading, setIsLoading] = useState(false);
   const [cropState, setCropState] = useState<CropState>(DEFAULT_CROP_STATE);
@@ -55,6 +59,7 @@ export function App() {
   const [backgroundColor, setBackgroundColor] = useState(DEFAULT_BACKGROUND);
   const [downloadStatus, setDownloadStatus] = useState<ExportStatus>('idle');
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
+  const closeHistory = useCallback(() => setIsHistoryOpen(false), []);
   const interactionStartRef = useRef<{ snapshot: EditorSnapshot; label: string } | null>(null);
   const resizeStartRef = useRef<EditorSnapshot | null>(null);
   const qualityStartRef = useRef<EditorSnapshot | null>(null);
@@ -126,6 +131,7 @@ export function App() {
     setBackgroundColor(DEFAULT_BACKGROUND);
     setDownloadStatus('idle');
     setIsHistoryOpen(false);
+    setMobilePanel(null);
     resetHistory(DEFAULT_EDITOR_SNAPSHOT);
   }, [flushPendingResize, resetHistory]);
 
@@ -281,7 +287,7 @@ export function App() {
     showToast(index === 0 ? 'Returned to original' : `Returned to: ${historyEntries[index].label}`);
   }, [applySnapshot, flushPendingResize, historyEntries, jumpTo, showToast]);
 
-  useKeyboardShortcuts({ onUndo: performUndo, onRedo: performRedo, onZoomIn: zoomIn, onZoomOut: zoomOut, onZoomReset: resetZoom, onZoomPreset: commitZoomPreset, onRotate: () => rotate(90), onOpen: openImage, onExport: exportFromShortcut, onEscape: () => setActiveTool(null) });
+  useKeyboardShortcuts({ onUndo: performUndo, onRedo: performRedo, onZoomIn: zoomIn, onZoomOut: zoomOut, onZoomReset: resetZoom, onZoomPreset: commitZoomPreset, onRotate: () => rotate(90), onOpen: openImage, onExport: exportFromShortcut, onEscape: () => { setActiveTool(null); setMobilePanel(null); } });
 
   const exportSettings: ExportSettings = useMemo(() => ({
     format: exportFormat,
@@ -381,12 +387,13 @@ export function App() {
   const visibleExportStatus = downloadStatus === 'idle' ? preview.status : downloadStatus;
 
   return <div className={`app ${theme}`}>
-    <AppHeader theme={theme} onToggle={() => setTheme(theme === 'light' ? 'dark' : 'light')} />
-    <main className="app-main">
+    <a className="skip-link" href="#main-content">Skip to editor</a>
+    <AppHeader theme={theme} onToggle={() => setTheme(theme === 'light' ? 'dark' : 'light')} onExport={loadedImage ? () => setMobilePanel('export') : undefined} />
+    <main className="app-main" id="main-content">
       {!loadedImage ? <UploadScreen onLoad={(file) => void loadAndReset(file)} /> : <>
         <input id="replace-image-input" type="file" accept="image/jpeg,image/png,image/webp,image/gif" hidden onChange={(event) => { const file = event.target.files?.[0]; if (file) void loadAndReset(file); event.currentTarget.value = ''; }} />
         <div className="workspace-shell">
-          <div className="workspace-grid">
+          <div className={`workspace-grid ${mobilePanel === 'export' ? 'mobile-export-open' : ''}`}>
             <EditorSidebar activeTool={activeTool} selectedAspect={selectedAspect} cropWidth={croppedAreaPixels?.width ?? null} cropHeight={croppedAreaPixels?.height ?? null} onToolChange={setActiveTool} onAspectChange={handleAspectChange} onCropReset={resetCrop} />
             <section className="canvas-workspace" aria-label="Image canvas">
               <div className="canvas-header"><div><span className="eyebrow">Canvas</span><strong>{loadedImage.element.naturalWidth} × {loadedImage.element.naturalHeight}</strong></div><span>Drag to reposition · scroll to zoom · pinch on touch</span></div>
@@ -396,7 +403,7 @@ export function App() {
               </div>
               <div className="canvas-footer"><span>Persistent transforms stay available above the canvas.</span><span>{loadedImage.format === 'gif' ? 'GIF edits use the first frame and export as a static image.' : 'Edits stay in this browser.'}</span></div>
             </section>
-            <div className="right-workspace-column">
+            <div className={`right-workspace-column ${mobilePanel === 'export' ? 'mobile-open' : ''}`}>
               <ExportPanel
                 originalWidth={loadedImage.element.naturalWidth}
                 originalHeight={loadedImage.element.naturalHeight}
@@ -424,14 +431,35 @@ export function App() {
                 onLockToggle={handleLockToggle}
                 onBackgroundChange={handleBackgroundChange}
                 onDownload={() => void handleDownload()}
-                              />
+              />
             </div>
           </div>
+          <MobileEditorControls
+            panel={mobilePanel}
+            selectedAspect={selectedAspect}
+            zoom={cropState.zoom}
+            canUndo={canUndo}
+            canRedo={canRedo}
+            onPanelChange={setMobilePanel}
+            onAspectChange={handleAspectChange}
+            onCropReset={resetCrop}
+            onRotateLeft={() => rotate(-90)}
+            onRotateRight={() => rotate(90)}
+            onFlipHorizontal={() => flip('x')}
+            onFlipVertical={() => flip('y')}
+            onZoomPreset={commitZoomPreset}
+            onUndo={performUndo}
+            onRedo={performRedo}
+            onHistory={() => setIsHistoryOpen(true)}
+            onReplace={replaceImage}
+            onClear={clearImage}
+            onReset={resetEdits}
+          />
         </div>
       </>}
     </main>
     <Toast visible={toast.visible} message={toast.message} />
-    <HistoryPanel open={isHistoryOpen} entries={historyEntries} currentIndex={historyCurrentIndex} onSelect={handleHistorySelect} onClose={() => setIsHistoryOpen(false)} />
+    <HistoryPanel open={isHistoryOpen} entries={historyEntries} currentIndex={historyCurrentIndex} onSelect={handleHistorySelect} onClose={closeHistory} />
     <footer className="app-footer"><div className="footer-content"><span><strong>CropLab</strong> · Private by design</span><span>JPEG · PNG · WebP · runs entirely in your browser</span><span>© {new Date().getFullYear()}</span></div></footer>
   </div>;
 }
