@@ -1,31 +1,53 @@
-/* Keep the editor viewport bounded while the v2 export panel is mounted.
-   This prevents short desktop viewports from letting the workspace extend
-   underneath the application footer. */
-.app:has(.export-panel-v2) {
-  height: 100dvh;
-  min-height: 0;
-  overflow: hidden;
+/* CropLab Export V2
+   Export-only layout and styling.
+   Desktop workspace height is controlled here; Export content scrolls internally.
+*/
+
+@media (min-width: 901px) {
+  .app {
+    min-height: 100dvh;
+    height: 100dvh;
+    overflow: hidden;
+  }
+
+  .app-main {
+    min-height: 0;
+    height: calc(100dvh - 105px);
+    overflow: hidden;
+  }
+
+  .workspace-shell {
+    height: 100%;
+    min-height: 0;
+    max-height: 100%;
+    padding: 14px;
+    overflow: hidden;
+  }
+
+  .workspace-grid {
+    height: 100%;
+    min-height: 0;
+  }
+
+  .right-workspace-column {
+    min-width: 0;
+    min-height: 0;
+    height: 100%;
+    max-height: 100%;
+    overflow: hidden;
+  }
 }
 
-.app:has(.export-panel-v2) .app-main {
-  min-height: 0;
-  overflow: hidden;
-}
-
-.app:has(.export-panel-v2) .workspace-shell {
-  height: 100%;
-  min-height: 0;
-}
-
-/* Export panel v2 — isolated to the export surface. */
+/* Export panel */
 .export-panel-v2 {
-  grid-row: 1;
-  align-self: stretch;
-  padding: 0;
-  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
   min-height: 0;
   height: 100%;
   max-height: 100%;
+  padding: 0;
+  overflow: hidden;
 }
 
 .export-v2-header {
@@ -49,10 +71,29 @@
 }
 
 .export-v2-scroll {
-  flex: 1;
+  flex: 1 1 auto;
   min-height: 0;
-  overflow: auto;
+  overflow-x: hidden;
+  overflow-y: auto;
   scrollbar-width: thin;
+  scrollbar-color: var(--border-strong) transparent;
+}
+
+.export-v2-scroll::-webkit-scrollbar {
+  width: 6px;
+}
+
+.export-v2-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.export-v2-scroll::-webkit-scrollbar-thumb {
+  background: var(--border-strong);
+  border-radius: 999px;
+}
+
+.export-v2-scroll::-webkit-scrollbar-thumb:hover {
+  background: var(--muted);
 }
 
 .export-v2-section {
@@ -112,17 +153,6 @@
   background: var(--surface);
   color: var(--text);
   font-size: 11px;
-}
-
-.export-v2-select:focus-visible,
-.export-v2-input-wrap input:focus-visible,
-.export-v2-range:focus-visible,
-.export-v2-choice:focus-visible,
-.export-v2-preset:focus-visible,
-.export-v2-lock:focus-visible,
-.export-v2-color-control input:focus-visible {
-  outline: 2px solid currentColor;
-  outline-offset: 2px;
 }
 
 .export-v2-format-meta {
@@ -195,14 +225,6 @@
   background: var(--surface-2);
   color: var(--text);
   font-weight: 650;
-}
-
-.export-v2-preset:disabled,
-.export-v2-choice:disabled,
-.export-v2-select:disabled,
-.export-v2-input-wrap input:disabled {
-  opacity: .45;
-  cursor: not-allowed;
 }
 
 .export-v2-help {
@@ -412,19 +434,6 @@
   background: var(--muted);
 }
 
-.export-v2-status-preparing .export-v2-status-dot,
-.export-v2-status-cropping .export-v2-status-dot,
-.export-v2-status-resizing .export-v2-status-dot,
-.export-v2-status-encoding .export-v2-status-dot,
-.export-v2-status-downloading .export-v2-status-dot {
-  background: var(--text);
-  animation: export-v2-pulse 1s ease-in-out infinite;
-}
-
-.export-v2-status-complete {
-  color: var(--text);
-}
-
 .export-v2-status-complete .export-v2-status-dot {
   background: var(--text);
 }
@@ -432,10 +441,6 @@
 .export-v2-status-error {
   color: var(--text);
   border-color: var(--border-strong);
-}
-
-@keyframes export-v2-pulse {
-  50% { opacity: .35; transform: scale(.75); }
 }
 
 .export-v2-download {
