@@ -106,3 +106,28 @@ describe('v1.6 image handling', () => {
     expect((await validateImageFile(unsupported)).valid).toBe(false);
   });
 });
+
+describe('v1.7 keyboard interaction system', () => {
+  it('maps editor shortcuts without requiring UI handlers to know key details', async () => {
+    const { getEditorShortcut } = await import('@/lib/editor/shortcuts');
+    const event = (key: string, modifiers: Partial<{ ctrlKey: boolean; metaKey: boolean; altKey: boolean; shiftKey: boolean }> = {}) => ({ key, ctrlKey: false, metaKey: false, altKey: false, shiftKey: false, ...modifiers });
+
+    expect(getEditorShortcut(event('z', { ctrlKey: true }), false)).toBe('undo');
+    expect(getEditorShortcut(event('z', { metaKey: true, shiftKey: true }), false)).toBe('redo');
+    expect(getEditorShortcut(event('r'), false)).toBe('rotate');
+    expect(getEditorShortcut(event('0'), false)).toBe('fit');
+    expect(getEditorShortcut(event('1'), false)).toBe('zoom100');
+    expect(getEditorShortcut(event('2'), false)).toBe('zoom200');
+    expect(getEditorShortcut(event('='), false)).toBe('zoomIn');
+    expect(getEditorShortcut(event('-'), false)).toBe('zoomOut');
+    expect(getEditorShortcut(event('o', { ctrlKey: true }), false)).toBe('open');
+    expect(getEditorShortcut(event('s', { metaKey: true }), false)).toBe('export');
+    expect(getEditorShortcut(event('Escape'), false)).toBe('escape');
+  });
+
+  it('does not consume shortcuts while editing form controls', async () => {
+    const { getEditorShortcut } = await import('@/lib/editor/shortcuts');
+    expect(getEditorShortcut({ key: 'z', ctrlKey: true, metaKey: false, altKey: false, shiftKey: false }, true)).toBeNull();
+    expect(getEditorShortcut({ key: 'r', ctrlKey: false, metaKey: false, altKey: false, shiftKey: false }, true)).toBeNull();
+  });
+});

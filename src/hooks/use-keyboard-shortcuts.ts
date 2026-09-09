@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import { getEditorShortcut } from '@/lib/editor/shortcuts';
 
 type Options = {
   onUndo: () => void;
@@ -7,29 +8,41 @@ type Options = {
   onZoomOut?: () => void;
   onZoomReset?: () => void;
   onZoomPreset?: (value: number) => void;
+  onRotate?: () => void;
+  onOpen?: () => void;
+  onExport?: () => void;
+  onEscape?: () => void;
 };
 
-export function useKeyboardShortcuts({ onUndo, onRedo, onZoomIn, onZoomOut, onZoomReset, onZoomPreset }: Options) {
+function isEditableTarget(target: EventTarget | null): boolean {
+  const element = target instanceof HTMLElement ? target : null;
+  if (!element) return false;
+  return element.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT', 'BUTTON'].includes(element.tagName);
+}
+
+export function useKeyboardShortcuts({ onUndo, onRedo, onZoomIn, onZoomOut, onZoomReset, onZoomPreset, onRotate, onOpen, onExport, onEscape }: Options) {
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
-      const target = event.target as HTMLElement | null;
-      const isTyping = target?.tagName === 'INPUT' || target?.tagName === 'TEXTAREA' || target?.tagName === 'SELECT' || target?.isContentEditable;
-      if (isTyping) return;
+      const shortcut = getEditorShortcut(event, isEditableTarget(event.target));
+      if (!shortcut) return;
+      event.preventDefault();
 
-      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'z') {
-        event.preventDefault();
-        if (event.shiftKey) onRedo(); else onUndo();
-        return;
+      switch (shortcut) {
+        case 'undo': onUndo(); break;
+        case 'redo': onRedo(); break;
+        case 'rotate': onRotate?.(); break;
+        case 'fit': onZoomReset?.(); break;
+        case 'zoom100': onZoomPreset?.(1); break;
+        case 'zoom200': onZoomPreset?.(2); break;
+        case 'zoomIn': onZoomIn?.(); break;
+        case 'zoomOut': onZoomOut?.(); break;
+        case 'open': onOpen?.(); break;
+        case 'export': onExport?.(); break;
+        case 'escape': onEscape?.(); break;
       }
-
-      if (event.ctrlKey || event.metaKey || event.altKey) return;
-      if ((event.key === '+' || event.key === '=') && onZoomIn) { event.preventDefault(); onZoomIn(); return; }
-      if (event.key === '-' && onZoomOut) { event.preventDefault(); onZoomOut(); return; }
-      if (event.key === '0' && onZoomReset) { event.preventDefault(); onZoomReset(); return; }
-      if (event.key === '1' && onZoomPreset) { event.preventDefault(); onZoomPreset(1); return; }
-      if (event.key === '2' && onZoomPreset) { event.preventDefault(); onZoomPreset(2); }
     };
+
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [onRedo, onUndo, onZoomIn, onZoomOut, onZoomPreset, onZoomReset]);
+  }, [onEscape, onExport, onOpen, onRedo, onRotate, onUndo, onZoomIn, onZoomOut, onZoomPreset, onZoomReset]);
 }

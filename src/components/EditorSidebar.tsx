@@ -3,7 +3,7 @@ import { ASPECT_RATIOS } from '@/lib/image/constants';
 
 export type EditorTool = 'crop' | 'resize' | 'compress' | 'adjust';
 type Props = {
-  activeTool: EditorTool;
+  activeTool: EditorTool | null;
   selectedAspect: number | null;
   cropWidth: number | null;
   cropHeight: number | null;

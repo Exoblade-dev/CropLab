@@ -6,6 +6,7 @@ import { AppHeader } from '@/components/AppHeader';
 import { EditorSidebar, type EditorTool } from '@/components/EditorSidebar';
 import { EditorToolbar } from '@/components/EditorToolbar';
 import { ExportPanel } from '@/components/ExportPanel';
+import { HistoryPanel } from '@/components/HistoryPanel';
 import { Toast } from '@/components/Toast';
 import { UploadScreen } from '@/components/UploadScreen';
 import { useEditorHistory } from '@/hooks/use-editor-history';
@@ -18,7 +19,7 @@ import { DEFAULT_CROP_STATE } from '@/lib/image/constants';
 import { createExportCanvas, encodeCanvas, getFileExtension, getOutputDimensions } from '@/lib/image/export';
 import { getCropperTransform } from '@/lib/image/transform';
 import { clampZoom, DEFAULT_ZOOM, deriveDimension, MAX_ZOOM, MIN_ZOOM, normalizeRotation, rotateBy } from '@/lib/editor/interaction';
-import type { CropState, ExportSettings, ExportStatus, ImageFormat } from '@/types/editor';
+import type { CropState, EditorSnapshot, ExportSettings, ExportStatus, ImageFormat } from '@/types/editor';
 
 const DEFAULT_BACKGROUND = '#ffffff';
 
@@ -28,7 +29,7 @@ function nextFrame(): Promise<void> {
 
 export function App() {
   const { theme, setTheme } = useTheme();
-  const [activeTool, setActiveTool] = useState<EditorTool>('crop');
+  const [activeTool, setActiveTool] = useState<EditorTool | null>('crop');
   const [toast, setToast] = useState({ visible: false, message: '' });
   const [isLoading, setIsLoading] = useState(false);
   const [cropState, setCropState] = useState<CropState>(DEFAULT_CROP_STATE);
@@ -41,7 +42,10 @@ export function App() {
   const [lockAspectRatio, setLockAspectRatio] = useState(true);
   const [backgroundColor, setBackgroundColor] = useState(DEFAULT_BACKGROUND);
   const [downloadStatus, setDownloadStatus] = useState<ExportStatus>('idle');
-  const interactionStartRef = useRef<CropState | null>(null);
+  const interactionStartRef = useRef<{ snapshot: EditorSnapshot; label: string } | null>(null);
+  const resizeStartRef = useRef<EditorSnapshot | null>(null);
+  const qualityStartRef = useRef<EditorSnapshot | null>(null);
+  const resizeTimerRef = useRef<number | null>(null);
 
   const showToast = useCallback((message: string) => {
     setToast({ visible: true, message });
@@ -52,7 +56,46 @@ export function App() {
   const { undoStack, redoStack, saveState, resetHistory, undo, redo } = useEditorHistory();
   const supportedFormats = useSupportedExportFormats();
 
+  const currentSnapshot = useMemo<EditorSnapshot>(() => ({
+    cropState,
+    selectedAspect,
+    width: customWidth,
+    height: customHeight,
+    format: exportFormat,
+    quality: exportQuality,
+    backgroundColor,
+  }), [backgroundColor, cropState, customHeight, customWidth, exportFormat, exportQuality, selectedAspect]);
+
+  const applySnapshot = useCallback((snapshot: EditorSnapshot) => {
+    setCropState(snapshot.cropState);
+    setSelectedAspect(snapshot.selectedAspect);
+    setCustomWidth(snapshot.width);
+    setCustomHeight(snapshot.height);
+    setExportFormat(snapshot.format);
+    setExportQuality(snapshot.quality);
+    setBackgroundColor(snapshot.backgroundColor);
+    setCroppedAreaPixels(null);
+  }, []);
+
+  const flushPendingResize = useCallback(() => {
+    if (resizeTimerRef.current !== null) {
+      window.clearTimeout(resizeTimerRef.current);
+      resizeTimerRef.current = null;
+    }
+    if (resizeStartRef.current) {
+      saveState(resizeStartRef.current, 'Resize');
+      resizeStartRef.current = null;
+    }
+  }, [saveState]);
+
+  const commit = useCallback((next: CropState, label: string) => {
+    flushPendingResize();
+    saveState(currentSnapshot, label);
+    setCropState(next);
+  }, [currentSnapshot, flushPendingResize, saveState]);
+
   const resetEditor = useCallback(() => {
+    flushPendingResize();
     setCropState(DEFAULT_CROP_STATE);
     setCroppedAreaPixels(null);
     setSelectedAspect(null);
@@ -64,7 +107,7 @@ export function App() {
     setBackgroundColor(DEFAULT_BACKGROUND);
     setDownloadStatus('idle');
     resetHistory();
-  }, [resetHistory]);
+  }, [flushPendingResize, resetHistory]);
 
   const loadAndReset = useCallback(async (file: File) => {
     const image = await load(file);
@@ -72,6 +115,10 @@ export function App() {
     resetEditor();
     showToast('Image loaded successfully');
   }, [load, resetEditor, showToast]);
+
+  useEffect(() => () => {
+    if (resizeTimerRef.current !== null) window.clearTimeout(resizeTimerRef.current);
+  }, []);
 
   useEffect(() => {
     const handlePaste = (event: ClipboardEvent) => {
@@ -87,92 +134,100 @@ export function App() {
   }, [loadAndReset]);
 
   const performUndo = useCallback(() => {
-    const previous = undo(cropState);
+    flushPendingResize();
+    const previous = undo(currentSnapshot);
     if (previous) {
-      setCropState(previous);
+      applySnapshot(previous);
       showToast('Undo');
     }
-  }, [cropState, undo, showToast]);
+  }, [applySnapshot, currentSnapshot, flushPendingResize, showToast, undo]);
 
   const performRedo = useCallback(() => {
-    const next = redo(cropState);
+    flushPendingResize();
+    const next = redo(currentSnapshot);
     if (next) {
-      setCropState(next);
+      applySnapshot(next);
       showToast('Redo');
     }
-  }, [cropState, redo, showToast]);
-
-  const commit = useCallback((next: CropState) => {
-    saveState(cropState);
-    setCropState(next);
-  }, [cropState, saveState]);
+  }, [applySnapshot, currentSnapshot, flushPendingResize, redo, showToast]);
 
   const rotate = useCallback((amount: number) => {
-    commit({ ...cropState, transform: { ...cropState.transform, rotation: rotateBy(cropState.transform.rotation, amount) } });
+    const nextRotation = rotateBy(cropState.transform.rotation, amount);
+    commit({ ...cropState, transform: { ...cropState.transform, rotation: nextRotation } }, `Rotate ${amount > 0 ? '90°' : '-90°'}`);
     showToast(amount > 0 ? 'Rotated right' : 'Rotated left');
   }, [commit, cropState, showToast]);
 
   const flip = useCallback((axis: 'x' | 'y') => {
     const key = axis === 'x' ? 'flipX' : 'flipY';
-    commit({ ...cropState, transform: { ...cropState.transform, [key]: !cropState.transform[key] } });
+    commit({ ...cropState, transform: { ...cropState.transform, [key]: !cropState.transform[key] } }, axis === 'x' ? 'Flip horizontal' : 'Flip vertical');
     showToast(axis === 'x' ? 'Flipped horizontally' : 'Flipped vertically');
   }, [commit, cropState, showToast]);
 
-  const beginInteraction = useCallback(() => { interactionStartRef.current = cropState; }, [cropState]);
+  const beginCropInteraction = useCallback(() => { interactionStartRef.current = { snapshot: currentSnapshot, label: 'Crop' }; }, [currentSnapshot]);
+  const beginRotationInteraction = useCallback(() => { interactionStartRef.current = { snapshot: currentSnapshot, label: 'Rotate' }; }, [currentSnapshot]);
+  const beginZoomInteraction = useCallback(() => { interactionStartRef.current = { snapshot: currentSnapshot, label: 'Zoom' }; }, [currentSnapshot]);
   const endInteraction = useCallback(() => {
     const start = interactionStartRef.current;
     interactionStartRef.current = null;
-    if (!start) return;
-    if (JSON.stringify(start) !== JSON.stringify(cropState)) saveState(start);
-  }, [cropState, saveState]);
+    if (!start || JSON.stringify(start.snapshot) === JSON.stringify(currentSnapshot)) return;
+    flushPendingResize();
+    saveState(start.snapshot, start.label);
+  }, [currentSnapshot, flushPendingResize, saveState]);
 
   const handleZoom = useCallback((zoom: number) => setCropState((prev) => ({ ...prev, zoom: clampZoom(zoom) })), []);
   const handleRotation = useCallback((rotation: number) => setCropState((prev) => ({ ...prev, transform: { ...prev.transform, rotation: normalizeRotation(rotation) } })), []);
   const cropperTransform = useMemo(() => getCropperTransform(cropState), [cropState]);
 
-  const commitZoomPreset = useCallback((zoom: number) => commit({ ...cropState, zoom: clampZoom(zoom) }), [commit, cropState]);
-  const zoomIn = useCallback(() => commit({ ...cropState, zoom: clampZoom(cropState.zoom + 0.1) }), [commit, cropState]);
-  const zoomOut = useCallback(() => commit({ ...cropState, zoom: clampZoom(cropState.zoom - 0.1) }), [commit, cropState]);
-  const resetZoom = useCallback(() => commit({ ...cropState, zoom: DEFAULT_ZOOM }), [commit, cropState]);
+  const commitZoomPreset = useCallback((zoom: number) => commit({ ...cropState, zoom: clampZoom(zoom) }, `Zoom ${Math.round(clampZoom(zoom) * 100)}%`), [commit, cropState]);
+  const zoomIn = useCallback(() => commit({ ...cropState, zoom: clampZoom(cropState.zoom + 0.1) }, `Zoom ${Math.round(clampZoom(cropState.zoom + 0.1) * 100)}%`), [commit, cropState]);
+  const zoomOut = useCallback(() => commit({ ...cropState, zoom: clampZoom(cropState.zoom - 0.1) }, `Zoom ${Math.round(clampZoom(cropState.zoom - 0.1) * 100)}%`), [commit, cropState]);
+  const resetZoom = useCallback(() => commit({ ...cropState, zoom: DEFAULT_ZOOM }, 'Zoom 100%'), [commit, cropState]);
 
-  useKeyboardShortcuts({ onUndo: performUndo, onRedo: performRedo, onZoomIn: zoomIn, onZoomOut: zoomOut, onZoomReset: resetZoom, onZoomPreset: commitZoomPreset });
+  const openImage = useCallback(() => document.getElementById('replace-image-input')?.click(), []);
+  const exportFromShortcut = useCallback(() => {
+    document.getElementById('download-image-button')?.click();
+  }, []);
+
+  useKeyboardShortcuts({ onUndo: performUndo, onRedo: performRedo, onZoomIn: zoomIn, onZoomOut: zoomOut, onZoomReset: resetZoom, onZoomPreset: commitZoomPreset, onRotate: () => rotate(90), onOpen: openImage, onExport: exportFromShortcut, onEscape: () => setActiveTool(null) });
 
   const resetCrop = useCallback(() => {
-    saveState(cropState);
+    flushPendingResize();
+    saveState(currentSnapshot, 'Crop reset');
     setCropState((prev) => ({ ...prev, crop: DEFAULT_CROP_STATE.crop, zoom: DEFAULT_ZOOM }));
     setSelectedAspect(null);
     setCroppedAreaPixels(null);
     showToast('Crop reset');
-  }, [cropState, saveState, showToast]);
+  }, [currentSnapshot, flushPendingResize, saveState, showToast]);
 
   const handleAspectChange = useCallback((value: number | null, label: string) => {
-    saveState(cropState);
+    flushPendingResize();
+    saveState(currentSnapshot, `Crop · ${label}`);
     setSelectedAspect(value);
     setCroppedAreaPixels(null);
     showToast(`Aspect ratio set to ${label}`);
-  }, [cropState, saveState, showToast]);
+  }, [currentSnapshot, flushPendingResize, saveState, showToast]);
 
   const handleDimension = useCallback((axis: 'width' | 'height', value: string) => {
     if (value === '') {
-      if (axis === 'width') setCustomWidth(null);
-      else setCustomHeight(null);
-      return;
-    }
-    const num = Number.parseInt(value, 10);
-    if (!Number.isFinite(num) || num <= 0) return;
-    if (!lockAspectRatio || !croppedAreaPixels) {
-      if (axis === 'width') setCustomWidth(num);
-      else setCustomHeight(num);
-      return;
-    }
-    if (axis === 'width') {
-      setCustomWidth(num);
-      setCustomHeight(deriveDimension(num, croppedAreaPixels.width, croppedAreaPixels.height, 'width'));
+      if (!resizeStartRef.current) resizeStartRef.current = currentSnapshot;
+      if (axis === 'width') setCustomWidth(null); else setCustomHeight(null);
     } else {
-      setCustomHeight(num);
-      setCustomWidth(deriveDimension(num, croppedAreaPixels.width, croppedAreaPixels.height, 'height'));
+      const num = Number.parseInt(value, 10);
+      if (!Number.isFinite(num) || num <= 0) return;
+      if (!resizeStartRef.current) resizeStartRef.current = currentSnapshot;
+      if (!lockAspectRatio || !croppedAreaPixels) {
+        if (axis === 'width') setCustomWidth(num); else setCustomHeight(num);
+      } else if (axis === 'width') {
+        setCustomWidth(num);
+        setCustomHeight(deriveDimension(num, croppedAreaPixels.width, croppedAreaPixels.height, 'width'));
+      } else {
+        setCustomHeight(num);
+        setCustomWidth(deriveDimension(num, croppedAreaPixels.width, croppedAreaPixels.height, 'height'));
+      }
     }
-  }, [croppedAreaPixels, lockAspectRatio]);
+    if (resizeTimerRef.current !== null) window.clearTimeout(resizeTimerRef.current);
+    resizeTimerRef.current = window.setTimeout(() => flushPendingResize(), 500);
+  }, [croppedAreaPixels, currentSnapshot, flushPendingResize, lockAspectRatio]);
 
   const resetEdits = useCallback(() => {
     if (!window.confirm('Reset all edits to original state?')) return;
@@ -211,12 +266,31 @@ export function App() {
   });
 
   const handleFormatChange = useCallback((format: ImageFormat) => {
+    flushPendingResize();
+    saveState(currentSnapshot, `Format · ${format.toUpperCase()}`);
     setExportFormat(format);
     if (format === 'png') setExportQuality(0.9);
     showToast(`Format set to ${format.toUpperCase()}`);
-  }, [showToast]);
+  }, [currentSnapshot, flushPendingResize, saveState, showToast]);
+
+  const handleQualityInteractionStart = useCallback(() => {
+    qualityStartRef.current = currentSnapshot;
+  }, [currentSnapshot]);
+
+  const handleQualityChange = useCallback((quality: number) => {
+    setExportQuality(quality);
+  }, []);
+
+  const handleQualityCommit = useCallback(() => {
+    const start = qualityStartRef.current;
+    qualityStartRef.current = null;
+    if (!start || JSON.stringify(start) === JSON.stringify(currentSnapshot)) return;
+    flushPendingResize();
+    saveState(start, `Quality · ${Math.round(exportQuality * 100)}%`);
+  }, [currentSnapshot, exportQuality, flushPendingResize, saveState]);
 
   const handleDownload = useCallback(async () => {
+    flushPendingResize();
     if (!loadedImage || !croppedAreaPixels) {
       showToast('No image to export');
       return;
@@ -254,7 +328,7 @@ export function App() {
     } finally {
       setIsLoading(false);
     }
-  }, [cropState.transform, croppedAreaPixels, exportFormat, exportSettings, loadedImage, showToast]);
+  }, [cropState.transform, croppedAreaPixels, exportFormat, exportSettings, flushPendingResize, loadedImage, showToast]);
 
   const outputDimensions = croppedAreaPixels ? getOutputDimensions(croppedAreaPixels, exportSettings) : null;
   const visibleExportStatus = downloadStatus === 'idle' ? preview.status : downloadStatus;
@@ -269,38 +343,43 @@ export function App() {
             <EditorSidebar activeTool={activeTool} selectedAspect={selectedAspect} cropWidth={croppedAreaPixels?.width ?? null} cropHeight={croppedAreaPixels?.height ?? null} onToolChange={setActiveTool} onAspectChange={handleAspectChange} onCropReset={resetCrop} />
             <section className="canvas-workspace" aria-label="Image canvas">
               <div className="canvas-header"><div><span className="eyebrow">Canvas</span><strong>{loadedImage.element.naturalWidth} × {loadedImage.element.naturalHeight}</strong></div><span>Drag to reposition · scroll to zoom · pinch on touch</span></div>
-              <EditorToolbar canUndo={Boolean(undoStack.length)} canRedo={Boolean(redoStack.length)} zoom={cropState.zoom} rotation={cropState.transform.rotation} onReplace={replaceImage} onClear={clearImage} onUndo={performUndo} onRedo={performRedo} onRotateLeft={() => rotate(-90)} onRotateRight={() => rotate(90)} onFlipHorizontal={() => flip('x')} onFlipVertical={() => flip('y')} onReset={resetEdits} onZoomChange={handleZoom} onZoomCommit={endInteraction} onZoomInteractionStart={beginInteraction} onZoomPreset={commitZoomPreset} onRotationChange={handleRotation} onRotationCommit={endInteraction} onRotationInteractionStart={beginInteraction} />
+              <EditorToolbar canUndo={Boolean(undoStack.length)} canRedo={Boolean(redoStack.length)} zoom={cropState.zoom} rotation={cropState.transform.rotation} onReplace={replaceImage} onClear={clearImage} onUndo={performUndo} onRedo={performRedo} onRotateLeft={() => rotate(-90)} onRotateRight={() => rotate(90)} onFlipHorizontal={() => flip('x')} onFlipVertical={() => flip('y')} onReset={resetEdits} onZoomChange={handleZoom} onZoomCommit={endInteraction} onZoomInteractionStart={beginZoomInteraction} onZoomPreset={commitZoomPreset} onRotationChange={handleRotation} onRotationCommit={endInteraction} onRotationInteractionStart={beginRotationInteraction} />
               <div className="canvas-stage">
-                <Cropper image={loadedImage.src} crop={cropState.crop} zoom={cropState.zoom} minZoom={MIN_ZOOM} maxZoom={MAX_ZOOM} zoomWithScroll aspect={selectedAspect ?? 0} onCropChange={(crop: Point) => setCropState((prev) => ({ ...prev, crop }))} onZoomChange={handleZoom} rotation={cropState.transform.rotation} onRotationChange={handleRotation} onCropComplete={(_area, pixels) => setCroppedAreaPixels(pixels)} onInteractionStart={beginInteraction} onInteractionEnd={endInteraction} keyboardStep={5} showGrid transform={cropperTransform} />
+                <Cropper image={loadedImage.src} crop={cropState.crop} zoom={cropState.zoom} minZoom={MIN_ZOOM} maxZoom={MAX_ZOOM} zoomWithScroll aspect={selectedAspect ?? 0} onCropChange={(crop: Point) => setCropState((prev) => ({ ...prev, crop }))} onZoomChange={handleZoom} rotation={cropState.transform.rotation} onRotationChange={handleRotation} onCropComplete={(_area, pixels) => setCroppedAreaPixels(pixels)} onInteractionStart={beginCropInteraction} onInteractionEnd={endInteraction} keyboardStep={5} showGrid transform={cropperTransform} />
               </div>
               <div className="canvas-footer"><span>Persistent transforms stay available above the canvas.</span><span>{loadedImage.format === 'gif' ? 'GIF edits use the first frame and export as a static image.' : 'Edits stay in this browser.'}</span></div>
             </section>
-            <ExportPanel
-              originalWidth={loadedImage.element.naturalWidth}
-              originalHeight={loadedImage.element.naturalHeight}
-              fileSize={loadedImage.fileSize}
-              cropWidth={croppedAreaPixels?.width ?? null}
-              cropHeight={croppedAreaPixels?.height ?? null}
-              outputWidth={outputDimensions?.width ?? null}
-              outputHeight={outputDimensions?.height ?? null}
-              format={exportFormat}
-              quality={exportQuality}
-              width={customWidth}
-              height={customHeight}
-              lockAspectRatio={lockAspectRatio}
-              backgroundColor={backgroundColor}
-              estimatedSize={preview.size}
-              exportStatus={visibleExportStatus}
-              supportedFormats={supportedFormats}
-              isLoading={isLoading}
-              onFormatChange={handleFormatChange}
-              onQualityChange={setExportQuality}
-              onWidthChange={(value) => handleDimension('width', value)}
-              onHeightChange={(value) => handleDimension('height', value)}
-              onLockToggle={() => setLockAspectRatio((prev) => !prev)}
-              onBackgroundChange={setBackgroundColor}
-              onDownload={() => void handleDownload()}
-            />
+            <div className="right-workspace-column">
+              <ExportPanel
+                originalWidth={loadedImage.element.naturalWidth}
+                originalHeight={loadedImage.element.naturalHeight}
+                fileSize={loadedImage.fileSize}
+                cropWidth={croppedAreaPixels?.width ?? null}
+                cropHeight={croppedAreaPixels?.height ?? null}
+                outputWidth={outputDimensions?.width ?? null}
+                outputHeight={outputDimensions?.height ?? null}
+                format={exportFormat}
+                quality={exportQuality}
+                width={customWidth}
+                height={customHeight}
+                lockAspectRatio={lockAspectRatio}
+                backgroundColor={backgroundColor}
+                estimatedSize={preview.size}
+                exportStatus={visibleExportStatus}
+                supportedFormats={supportedFormats}
+                isLoading={isLoading}
+                onFormatChange={handleFormatChange}
+                onQualityChange={handleQualityChange}
+                onQualityInteractionStart={handleQualityInteractionStart}
+                onQualityCommit={handleQualityCommit}
+                onWidthChange={(value) => handleDimension('width', value)}
+                onHeightChange={(value) => handleDimension('height', value)}
+                onLockToggle={() => setLockAspectRatio((prev) => !prev)}
+                onBackgroundChange={setBackgroundColor}
+                onDownload={() => void handleDownload()}
+                              />
+              <HistoryPanel entries={undoStack} redoCount={redoStack.length} />
+            </div>
           </div>
         </div>
       </>}

@@ -1,17 +1,18 @@
 import { useCallback, useState } from 'react';
-import type { CropState } from '@/types/editor';
+import type { EditorHistoryEntry, EditorSnapshot } from '@/types/editor';
 
 const MAX_HISTORY = 50;
 
-export function useEditorHistory() {
-  const [undoStack, setUndoStack] = useState<CropState[]>([]);
-  const [redoStack, setRedoStack] = useState<CropState[]>([]);
+function trim(entries: EditorHistoryEntry[]): EditorHistoryEntry[] {
+  return entries.length > MAX_HISTORY ? entries.slice(entries.length - MAX_HISTORY) : entries;
+}
 
-  const saveState = useCallback((state: CropState) => {
-    setUndoStack((prev) => {
-      const next = [...prev, state];
-      return next.length > MAX_HISTORY ? next.slice(next.length - MAX_HISTORY) : next;
-    });
+export function useEditorHistory() {
+  const [undoStack, setUndoStack] = useState<EditorHistoryEntry[]>([]);
+  const [redoStack, setRedoStack] = useState<EditorHistoryEntry[]>([]);
+
+  const saveState = useCallback((snapshot: EditorSnapshot, label: string) => {
+    setUndoStack((prev) => trim([...prev, { id: crypto.randomUUID(), label, snapshot }]));
     setRedoStack([]);
   }, []);
 
@@ -20,20 +21,20 @@ export function useEditorHistory() {
     setRedoStack([]);
   }, []);
 
-  const undo = useCallback((current: CropState) => {
+  const undo = useCallback((current: EditorSnapshot) => {
     if (!undoStack.length) return null;
-    const previous = undoStack[undoStack.length - 1];
-    setRedoStack((prev) => [current, ...prev].slice(0, MAX_HISTORY));
+    const entry = undoStack[undoStack.length - 1];
+    setRedoStack((prev) => [{ id: crypto.randomUUID(), label: entry.label, snapshot: current }, ...prev].slice(0, MAX_HISTORY));
     setUndoStack((prev) => prev.slice(0, -1));
-    return previous;
+    return entry.snapshot;
   }, [undoStack]);
 
-  const redo = useCallback((current: CropState) => {
+  const redo = useCallback((current: EditorSnapshot) => {
     if (!redoStack.length) return null;
-    const next = redoStack[0];
-    setUndoStack((prev) => [...prev, current].slice(-MAX_HISTORY));
+    const entry = redoStack[0];
+    setUndoStack((prev) => trim([...prev, { id: crypto.randomUUID(), label: entry.label, snapshot: current }]));
     setRedoStack((prev) => prev.slice(1));
-    return next;
+    return entry.snapshot;
   }, [redoStack]);
 
   return { undoStack, redoStack, saveState, resetHistory, undo, redo };
