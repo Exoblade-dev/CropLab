@@ -99,8 +99,8 @@ export function MobileEditorControls({
               <div className="mobile-flip-row">
                 <button className="mobile-secondary-button" onClick={onFlipHorizontal}><FlipHorizontal size={15} /> Flip H</button>
                 <button className="mobile-secondary-button" onClick={onFlipVertical}><FlipHorizontal size={15} className="flip-vertical-icon" /> Flip V</button>
-                <button className="mobile-secondary-button" onClick={onRotateLeft}><RotateCcw size={15} /> Rotate</button>
-                <button className="mobile-secondary-button" onClick={onRotateRight}><RotateCw size={15} /> Rotate</button>
+                <button className="mobile-secondary-button" onClick={onRotateLeft} aria-label="Rotate left 90 degrees"><RotateCcw size={15} /> Rotate left</button>
+                <button className="mobile-secondary-button" onClick={onRotateRight} aria-label="Rotate right 90 degrees"><RotateCw size={15} /> Rotate right</button>
               </div>
             </div>
           )}
