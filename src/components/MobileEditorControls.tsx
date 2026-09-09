@@ -107,6 +107,25 @@ export function MobileEditorControls({
         </section>
       )}
 
+      <div className="mobile-quick-bar" aria-label="Quick editor controls">
+        <button className="mobile-quick-button" onClick={onUndo} disabled={!canUndo} aria-label="Undo last edit" title="Undo">
+          <Undo2 size={16} />
+        </button>
+        <button className="mobile-quick-button" onClick={onRedo} disabled={!canRedo} aria-label="Redo last edit" title="Redo">
+          <Redo2 size={16} />
+        </button>
+        <span className="mobile-quick-divider" aria-hidden="true" />
+        <button className="mobile-quick-button" onClick={() => onZoomPreset(zoom - 0.1)} aria-label="Zoom out" title="Zoom out">
+          <ZoomOut size={16} />
+        </button>
+        <button className="mobile-quick-value" onClick={() => onZoomPreset(0.2)} aria-label="Fit image" title="Fit image">Fit</button>
+        <button className={`mobile-quick-value ${Math.abs(zoom - 1) < 0.01 ? 'active' : ''}`} onClick={() => onZoomPreset(1)} aria-label="Zoom to 100 percent" title="100 percent">100%</button>
+        <button className="mobile-quick-button" onClick={() => onZoomPreset(zoom + 0.1)} aria-label="Zoom in" title="Zoom in">
+          <ZoomIn size={16} />
+        </button>
+        <span className="mobile-quick-zoom" aria-live="polite">{Math.round(zoom * 100)}%</span>
+      </div>
+
       <nav className="mobile-bottom-bar" aria-label="Mobile editor controls">
         <button className={panel === 'crop' ? 'active' : ''} onClick={() => onPanelChange(panel === 'crop' ? null : 'crop')} aria-pressed={panel === 'crop'}><Crop size={18} /><span>Crop</span></button>
         <button onClick={onRotateRight} aria-label="Rotate right 90 degrees"><RotateCw size={18} /><span>Rotate</span></button>
