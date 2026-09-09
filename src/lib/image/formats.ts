@@ -1,5 +1,8 @@
 import type { ImageFormat } from '@/types/editor';
 
+export type ExportCompression = 'lossless' | 'lossy' | 'mixed';
+export type ExportTransparency = 'preserved' | 'background' | 'unsupported';
+
 export type ExportFormatDefinition = {
   id: ImageFormat;
   label: string;
@@ -8,6 +11,9 @@ export type ExportFormatDefinition = {
   supportsQuality: boolean;
   supportsTransparency: boolean;
   supportsBackground: boolean;
+  compression: ExportCompression;
+  transparency: ExportTransparency;
+  description: string;
 };
 
 export const EXPORT_FORMATS: readonly ExportFormatDefinition[] = [
@@ -19,6 +25,9 @@ export const EXPORT_FORMATS: readonly ExportFormatDefinition[] = [
     supportsQuality: false,
     supportsTransparency: true,
     supportsBackground: false,
+    compression: 'lossless',
+    transparency: 'preserved',
+    description: 'Lossless output with transparency preserved.',
   },
   {
     id: 'jpeg',
@@ -28,6 +37,9 @@ export const EXPORT_FORMATS: readonly ExportFormatDefinition[] = [
     supportsQuality: true,
     supportsTransparency: false,
     supportsBackground: true,
+    compression: 'lossy',
+    transparency: 'background',
+    description: 'Lossy output with configurable encoder quality.',
   },
   {
     id: 'webp',
@@ -37,6 +49,9 @@ export const EXPORT_FORMATS: readonly ExportFormatDefinition[] = [
     supportsQuality: true,
     supportsTransparency: true,
     supportsBackground: false,
+    compression: 'lossy',
+    transparency: 'preserved',
+    description: 'Lossy output with transparency preserved.',
   },
 ];
 
