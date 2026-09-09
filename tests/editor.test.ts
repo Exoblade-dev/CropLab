@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { clampZoom, deriveDimension, normalizeRotation, rotateBy } from '@/lib/editor/interaction';
 import { getFileExtension, getMimeType, getOutputDimensions, getSizeReductionPercent } from '@/lib/image/export';
 import { getFormatDefinition } from '@/lib/image/formats';
+import { detectImageFormat, validateCanvasDimensions, validateImageDimensions, validateImageFile } from '@/lib/image/validation';
 import { getCropperTransform } from '@/lib/image/transform';
 import type { CropState, ExportSettings } from '@/types/editor';
 
@@ -74,5 +75,34 @@ describe('v1.5 export engine', () => {
     expect(getSizeReductionPercent(3_800_000, 842_000)).toBe(78);
     expect(getSizeReductionPercent(100_000, 120_000)).toBe(-20);
     expect(getSizeReductionPercent(100_000, 100_000)).toBe(0);
+  });
+});
+
+describe('v1.6 image handling', () => {
+  it('detects supported image signatures', () => {
+    expect(detectImageFormat(new Uint8Array([0xff, 0xd8, 0xff, 0xe0]))).toBe('jpeg');
+    expect(detectImageFormat(new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]))).toBe('png');
+    expect(detectImageFormat(new Uint8Array([0x47, 0x49, 0x46, 0x38, 0x39, 0x61]))).toBe('gif');
+    expect(detectImageFormat(new Uint8Array([0x52, 0x49, 0x46, 0x46, 0, 0, 0, 0, 0x57, 0x45, 0x42, 0x50]))).toBe('webp');
+    expect(detectImageFormat(new Uint8Array([0, 1, 2, 3]))).toBeNull();
+  });
+
+  it('rejects dimensions outside the safe image and canvas limits', () => {
+    expect(validateImageDimensions(8192, 4096)).toEqual({ valid: true });
+    expect(validateImageDimensions(8193, 100)).toEqual({ valid: false, message: expect.stringContaining('8192') });
+    expect(validateImageDimensions(8000, 5001)).toEqual({ valid: false, message: expect.stringContaining('pixels') });
+    expect(validateImageDimensions(0, 100)).toEqual({ valid: false, message: 'Image has invalid dimensions' });
+    expect(validateCanvasDimensions(8192, 4096)).toEqual({ valid: true });
+    expect(validateCanvasDimensions(9000, 1000)).toEqual({ valid: false, message: expect.stringContaining('8192') });
+  });
+
+  it('validates file signatures and MIME types before decoding', async () => {
+    const png = new File([new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])], 'test.png', { type: 'image/png' });
+    const spoofed = new File([new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])], 'test.jpg', { type: 'image/jpeg' });
+    const unsupported = new File([new Uint8Array([0, 1, 2, 3])], 'test.bmp', { type: 'image/bmp' });
+
+    expect((await validateImageFile(png)).valid).toBe(true);
+    expect(await validateImageFile(spoofed)).toEqual({ valid: false, message: 'The file type does not match the image data.' });
+    expect((await validateImageFile(unsupported)).valid).toBe(false);
   });
 });

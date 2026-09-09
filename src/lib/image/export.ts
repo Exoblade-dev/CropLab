@@ -1,6 +1,7 @@
 import type { Area } from 'react-easy-crop';
 import type { ExportSettings, ImageFormat, TransformState } from '@/types/editor';
 import { getFormatDefinition } from '@/lib/image/formats';
+import { validateCanvasDimensions } from '@/lib/image/validation';
 
 export function getOutputDimensions(crop: Area, settings: ExportSettings) {
   let width = crop.width;
@@ -36,6 +37,9 @@ export function createExportCanvas(
   settings: ExportSettings,
 ): HTMLCanvasElement {
   const { width, height } = getOutputDimensions(crop, settings);
+  const canvasValidation = validateCanvasDimensions(width, height);
+  if (!canvasValidation.valid) throw new Error(canvasValidation.message);
+
   const canvas = document.createElement('canvas');
   canvas.width = width;
   canvas.height = height;

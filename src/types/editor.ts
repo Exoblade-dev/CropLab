@@ -1,4 +1,5 @@
 import type { Area, Point } from 'react-easy-crop';
+import type { InputImageFormat } from '@/lib/image/validation';
 
 export type ImageFormat = 'png' | 'jpeg' | 'webp';
 export type TransformState = { rotation: number; flipX: boolean; flipY: boolean };
@@ -13,6 +14,6 @@ export type ExportSettings = {
   lockAspectRatio: boolean;
   backgroundColor: string;
 };
-export type LoadedImage = { src: string; element: HTMLImageElement; fileSize: number };
+export type LoadedImage = { src: string; element: HTMLImageElement; fileSize: number; format: InputImageFormat };
 export type CropArea = Area | null;
 export type ExportStatus = 'idle' | 'preparing' | 'cropping' | 'resizing' | 'encoding' | 'downloading' | 'complete' | 'error';

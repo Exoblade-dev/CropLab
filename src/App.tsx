@@ -263,7 +263,7 @@ export function App() {
     <AppHeader theme={theme} onToggle={() => setTheme(theme === 'light' ? 'dark' : 'light')} />
     <main className="app-main">
       {!loadedImage ? <UploadScreen onLoad={(file) => void loadAndReset(file)} /> : <>
-        <input id="replace-image-input" type="file" accept="image/*" hidden onChange={(event) => { const file = event.target.files?.[0]; if (file) void loadAndReset(file); event.currentTarget.value = ''; }} />
+        <input id="replace-image-input" type="file" accept="image/jpeg,image/png,image/webp,image/gif" hidden onChange={(event) => { const file = event.target.files?.[0]; if (file) void loadAndReset(file); event.currentTarget.value = ''; }} />
         <div className="workspace-shell">
           <div className="workspace-grid">
             <EditorSidebar activeTool={activeTool} selectedAspect={selectedAspect} cropWidth={croppedAreaPixels?.width ?? null} cropHeight={croppedAreaPixels?.height ?? null} onToolChange={setActiveTool} onAspectChange={handleAspectChange} onCropReset={resetCrop} />
@@ -273,7 +273,7 @@ export function App() {
               <div className="canvas-stage">
                 <Cropper image={loadedImage.src} crop={cropState.crop} zoom={cropState.zoom} minZoom={MIN_ZOOM} maxZoom={MAX_ZOOM} zoomWithScroll aspect={selectedAspect ?? 0} onCropChange={(crop: Point) => setCropState((prev) => ({ ...prev, crop }))} onZoomChange={handleZoom} rotation={cropState.transform.rotation} onRotationChange={handleRotation} onCropComplete={(_area, pixels) => setCroppedAreaPixels(pixels)} onInteractionStart={beginInteraction} onInteractionEnd={endInteraction} keyboardStep={5} showGrid transform={cropperTransform} />
               </div>
-              <div className="canvas-footer"><span>Persistent transforms stay available above the canvas.</span><span>Edits stay in this browser.</span></div>
+              <div className="canvas-footer"><span>Persistent transforms stay available above the canvas.</span><span>{loadedImage.format === 'gif' ? 'GIF edits use the first frame and export as a static image.' : 'Edits stay in this browser.'}</span></div>
             </section>
             <ExportPanel
               originalWidth={loadedImage.element.naturalWidth}

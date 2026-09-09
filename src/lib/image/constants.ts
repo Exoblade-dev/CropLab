@@ -2,6 +2,8 @@ import type { AspectRatio, CropState } from '@/types/editor';
 import { DEFAULT_ZOOM } from '@/lib/editor/interaction';
 
 export const MAX_FILE_SIZE = 50 * 1024 * 1024;
+export const MAX_IMAGE_DIMENSION = 8192;
+export const MAX_IMAGE_PIXELS = 40_000_000;
 
 export const DEFAULT_CROP_STATE: CropState = {
   crop: { x: 50, y: 50 },
