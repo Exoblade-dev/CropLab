@@ -23,6 +23,18 @@ import type { CropState, EditorSnapshot, ExportSettings, ExportStatus, ImageForm
 
 const DEFAULT_BACKGROUND = '#ffffff';
 
+const DEFAULT_EDITOR_SNAPSHOT: EditorSnapshot = {
+  cropState: DEFAULT_CROP_STATE,
+  cropArea: null,
+  selectedAspect: null,
+  width: null,
+  height: null,
+  lockAspectRatio: true,
+  format: 'png',
+  quality: 0.9,
+  backgroundColor: DEFAULT_BACKGROUND,
+};
+
 function nextFrame(): Promise<void> {
   return new Promise((resolve) => window.requestAnimationFrame(() => resolve()));
 }
@@ -42,6 +54,7 @@ export function App() {
   const [lockAspectRatio, setLockAspectRatio] = useState(true);
   const [backgroundColor, setBackgroundColor] = useState(DEFAULT_BACKGROUND);
   const [downloadStatus, setDownloadStatus] = useState<ExportStatus>('idle');
+  const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const interactionStartRef = useRef<{ snapshot: EditorSnapshot; label: string } | null>(null);
   const resizeStartRef = useRef<EditorSnapshot | null>(null);
   const qualityStartRef = useRef<EditorSnapshot | null>(null);
@@ -53,7 +66,7 @@ export function App() {
   }, []);
 
   const { loadedImage, load, clear } = useImageLoader(showToast);
-  const { undoStack, redoStack, saveState, resetHistory, undo, redo } = useEditorHistory();
+  const { entries: historyEntries, currentIndex: historyCurrentIndex, canUndo, canRedo, record: recordHistory, resetHistory, undo, redo, jumpTo } = useEditorHistory(DEFAULT_EDITOR_SNAPSHOT);
   const supportedFormats = useSupportedExportFormats();
 
   const currentSnapshot = useMemo<EditorSnapshot>(() => ({
@@ -64,7 +77,9 @@ export function App() {
     format: exportFormat,
     quality: exportQuality,
     backgroundColor,
-  }), [backgroundColor, cropState, customHeight, customWidth, exportFormat, exportQuality, selectedAspect]);
+    cropArea: croppedAreaPixels,
+    lockAspectRatio,
+  }), [backgroundColor, cropState, croppedAreaPixels, customHeight, customWidth, exportFormat, exportQuality, lockAspectRatio, selectedAspect]);
 
   const applySnapshot = useCallback((snapshot: EditorSnapshot) => {
     setCropState(snapshot.cropState);
@@ -74,7 +89,8 @@ export function App() {
     setExportFormat(snapshot.format);
     setExportQuality(snapshot.quality);
     setBackgroundColor(snapshot.backgroundColor);
-    setCroppedAreaPixels(null);
+    setLockAspectRatio(snapshot.lockAspectRatio);
+    setCroppedAreaPixels(snapshot.cropArea);
   }, []);
 
   const flushPendingResize = useCallback(() => {
@@ -83,16 +99,19 @@ export function App() {
       resizeTimerRef.current = null;
     }
     if (resizeStartRef.current) {
-      saveState(resizeStartRef.current, 'Resize');
+      if (JSON.stringify(resizeStartRef.current) !== JSON.stringify(currentSnapshot)) {
+        const label = currentSnapshot.width && currentSnapshot.height ? `Resize → ${currentSnapshot.width} × ${currentSnapshot.height}` : 'Resize';
+        recordHistory(currentSnapshot, label);
+      }
       resizeStartRef.current = null;
     }
-  }, [saveState]);
+  }, [currentSnapshot, recordHistory]);
 
   const commit = useCallback((next: CropState, label: string) => {
     flushPendingResize();
-    saveState(currentSnapshot, label);
+    recordHistory({ ...currentSnapshot, cropState: next }, label);
     setCropState(next);
-  }, [currentSnapshot, flushPendingResize, saveState]);
+  }, [currentSnapshot, flushPendingResize, recordHistory]);
 
   const resetEditor = useCallback(() => {
     flushPendingResize();
@@ -106,7 +125,8 @@ export function App() {
     setLockAspectRatio(true);
     setBackgroundColor(DEFAULT_BACKGROUND);
     setDownloadStatus('idle');
-    resetHistory();
+    setIsHistoryOpen(false);
+    resetHistory(DEFAULT_EDITOR_SNAPSHOT);
   }, [flushPendingResize, resetHistory]);
 
   const loadAndReset = useCallback(async (file: File) => {
@@ -135,21 +155,21 @@ export function App() {
 
   const performUndo = useCallback(() => {
     flushPendingResize();
-    const previous = undo(currentSnapshot);
+    const previous = undo();
     if (previous) {
       applySnapshot(previous);
       showToast('Undo');
     }
-  }, [applySnapshot, currentSnapshot, flushPendingResize, showToast, undo]);
+  }, [applySnapshot, flushPendingResize, showToast, undo]);
 
   const performRedo = useCallback(() => {
     flushPendingResize();
-    const next = redo(currentSnapshot);
+    const next = redo();
     if (next) {
       applySnapshot(next);
       showToast('Redo');
     }
-  }, [applySnapshot, currentSnapshot, flushPendingResize, redo, showToast]);
+  }, [applySnapshot, flushPendingResize, redo, showToast]);
 
   const rotate = useCallback((amount: number) => {
     const nextRotation = rotateBy(cropState.transform.rotation, amount);
@@ -165,47 +185,41 @@ export function App() {
 
   const beginCropInteraction = useCallback(() => { interactionStartRef.current = { snapshot: currentSnapshot, label: 'Crop' }; }, [currentSnapshot]);
   const beginRotationInteraction = useCallback(() => { interactionStartRef.current = { snapshot: currentSnapshot, label: 'Rotate' }; }, [currentSnapshot]);
-  const beginZoomInteraction = useCallback(() => { interactionStartRef.current = { snapshot: currentSnapshot, label: 'Zoom' }; }, [currentSnapshot]);
   const endInteraction = useCallback(() => {
     const start = interactionStartRef.current;
     interactionStartRef.current = null;
     if (!start || JSON.stringify(start.snapshot) === JSON.stringify(currentSnapshot)) return;
     flushPendingResize();
-    saveState(start.snapshot, start.label);
-  }, [currentSnapshot, flushPendingResize, saveState]);
+    recordHistory(currentSnapshot, start.label);
+  }, [currentSnapshot, flushPendingResize, recordHistory]);
 
   const handleZoom = useCallback((zoom: number) => setCropState((prev) => ({ ...prev, zoom: clampZoom(zoom) })), []);
   const handleRotation = useCallback((rotation: number) => setCropState((prev) => ({ ...prev, transform: { ...prev.transform, rotation: normalizeRotation(rotation) } })), []);
   const cropperTransform = useMemo(() => getCropperTransform(cropState), [cropState]);
 
-  const commitZoomPreset = useCallback((zoom: number) => commit({ ...cropState, zoom: clampZoom(zoom) }, `Zoom ${Math.round(clampZoom(zoom) * 100)}%`), [commit, cropState]);
-  const zoomIn = useCallback(() => commit({ ...cropState, zoom: clampZoom(cropState.zoom + 0.1) }, `Zoom ${Math.round(clampZoom(cropState.zoom + 0.1) * 100)}%`), [commit, cropState]);
-  const zoomOut = useCallback(() => commit({ ...cropState, zoom: clampZoom(cropState.zoom - 0.1) }, `Zoom ${Math.round(clampZoom(cropState.zoom - 0.1) * 100)}%`), [commit, cropState]);
-  const resetZoom = useCallback(() => commit({ ...cropState, zoom: DEFAULT_ZOOM }, 'Zoom 100%'), [commit, cropState]);
-
-  const openImage = useCallback(() => document.getElementById('replace-image-input')?.click(), []);
-  const exportFromShortcut = useCallback(() => {
-    document.getElementById('download-image-button')?.click();
-  }, []);
-
-  useKeyboardShortcuts({ onUndo: performUndo, onRedo: performRedo, onZoomIn: zoomIn, onZoomOut: zoomOut, onZoomReset: resetZoom, onZoomPreset: commitZoomPreset, onRotate: () => rotate(90), onOpen: openImage, onExport: exportFromShortcut, onEscape: () => setActiveTool(null) });
+  const commitZoomPreset = useCallback((zoom: number) => setCropState((prev) => ({ ...prev, zoom: clampZoom(zoom) })), []);
+  const zoomIn = useCallback(() => setCropState((prev) => ({ ...prev, zoom: clampZoom(prev.zoom + 0.1) })), []);
+  const zoomOut = useCallback(() => setCropState((prev) => ({ ...prev, zoom: clampZoom(prev.zoom - 0.1) })), []);
+  const resetZoom = useCallback(() => setCropState((prev) => ({ ...prev, zoom: DEFAULT_ZOOM })), []);
 
   const resetCrop = useCallback(() => {
     flushPendingResize();
-    saveState(currentSnapshot, 'Crop reset');
-    setCropState((prev) => ({ ...prev, crop: DEFAULT_CROP_STATE.crop, zoom: DEFAULT_ZOOM }));
+    const nextCropState = { ...cropState, crop: DEFAULT_CROP_STATE.crop, zoom: DEFAULT_ZOOM };
+    const nextSnapshot = { ...currentSnapshot, cropState: nextCropState, selectedAspect: null, cropArea: null };
+    recordHistory(nextSnapshot, 'Crop reset');
+    setCropState(nextCropState);
     setSelectedAspect(null);
     setCroppedAreaPixels(null);
     showToast('Crop reset');
-  }, [currentSnapshot, flushPendingResize, saveState, showToast]);
+  }, [cropState, currentSnapshot, flushPendingResize, recordHistory, showToast]);
 
   const handleAspectChange = useCallback((value: number | null, label: string) => {
     flushPendingResize();
-    saveState(currentSnapshot, `Crop · ${label}`);
+    recordHistory({ ...currentSnapshot, selectedAspect: value, cropArea: null }, `Crop · ${label}`);
     setSelectedAspect(value);
     setCroppedAreaPixels(null);
     showToast(`Aspect ratio set to ${label}`);
-  }, [currentSnapshot, flushPendingResize, saveState, showToast]);
+  }, [currentSnapshot, flushPendingResize, recordHistory, showToast]);
 
   const handleDimension = useCallback((axis: 'width' | 'height', value: string) => {
     if (value === '') {
@@ -231,9 +245,11 @@ export function App() {
 
   const resetEdits = useCallback(() => {
     if (!window.confirm('Reset all edits to original state?')) return;
-    resetEditor();
+    flushPendingResize();
+    recordHistory(DEFAULT_EDITOR_SNAPSHOT, 'Reset to original');
+    applySnapshot(DEFAULT_EDITOR_SNAPSHOT);
     showToast('Reset to original');
-  }, [resetEditor, showToast]);
+  }, [applySnapshot, flushPendingResize, recordHistory, showToast]);
 
   const clearImage = useCallback(() => {
     if (!window.confirm('Clear current image and return to upload screen?')) return;
@@ -243,11 +259,29 @@ export function App() {
   }, [clear, resetEditor, showToast]);
 
   const replaceImage = useCallback(() => {
-    if (undoStack.length || redoStack.length) {
+    if (canUndo || canRedo) {
       if (!window.confirm('Replace image? This will discard current edits.')) return;
     }
     document.getElementById('replace-image-input')?.click();
-  }, [redoStack.length, undoStack.length]);
+  }, [canRedo, canUndo]);
+
+  const openImage = useCallback(() => {
+    if (loadedImage) replaceImage();
+    else document.getElementById('upload-image-input')?.click();
+  }, [loadedImage, replaceImage]);
+  const exportFromShortcut = useCallback(() => {
+    document.getElementById('download-image-button')?.click();
+  }, []);
+
+  const handleHistorySelect = useCallback((index: number) => {
+    flushPendingResize();
+    const snapshot = jumpTo(index);
+    if (!snapshot) return;
+    applySnapshot(snapshot);
+    showToast(index === 0 ? 'Returned to original' : `Returned to: ${historyEntries[index].label}`);
+  }, [applySnapshot, flushPendingResize, historyEntries, jumpTo, showToast]);
+
+  useKeyboardShortcuts({ onUndo: performUndo, onRedo: performRedo, onZoomIn: zoomIn, onZoomOut: zoomOut, onZoomReset: resetZoom, onZoomPreset: commitZoomPreset, onRotate: () => rotate(90), onOpen: openImage, onExport: exportFromShortcut, onEscape: () => setActiveTool(null) });
 
   const exportSettings: ExportSettings = useMemo(() => ({
     format: exportFormat,
@@ -267,11 +301,12 @@ export function App() {
 
   const handleFormatChange = useCallback((format: ImageFormat) => {
     flushPendingResize();
-    saveState(currentSnapshot, `Format · ${format.toUpperCase()}`);
+    const nextQuality = format === 'png' ? 0.9 : exportQuality;
+    recordHistory({ ...currentSnapshot, format, quality: nextQuality }, `Format · ${format.toUpperCase()}`);
     setExportFormat(format);
-    if (format === 'png') setExportQuality(0.9);
+    if (format === 'png') setExportQuality(nextQuality);
     showToast(`Format set to ${format.toUpperCase()}`);
-  }, [currentSnapshot, flushPendingResize, saveState, showToast]);
+  }, [currentSnapshot, exportQuality, flushPendingResize, recordHistory, showToast]);
 
   const handleQualityInteractionStart = useCallback(() => {
     qualityStartRef.current = currentSnapshot;
@@ -286,8 +321,20 @@ export function App() {
     qualityStartRef.current = null;
     if (!start || JSON.stringify(start) === JSON.stringify(currentSnapshot)) return;
     flushPendingResize();
-    saveState(start, `Quality · ${Math.round(exportQuality * 100)}%`);
-  }, [currentSnapshot, exportQuality, flushPendingResize, saveState]);
+    recordHistory(currentSnapshot, `Quality · ${Math.round(exportQuality * 100)}%`);
+  }, [currentSnapshot, exportQuality, flushPendingResize, recordHistory]);
+
+  const handleLockToggle = useCallback(() => {
+    flushPendingResize();
+    const nextLock = !lockAspectRatio;
+    recordHistory({ ...currentSnapshot, lockAspectRatio: nextLock }, nextLock ? 'Lock aspect ratio' : 'Unlock aspect ratio');
+    setLockAspectRatio(nextLock);
+  }, [currentSnapshot, flushPendingResize, lockAspectRatio, recordHistory]);
+
+  const handleBackgroundChange = useCallback((color: string) => {
+    recordHistory({ ...currentSnapshot, backgroundColor: color }, `JPEG background · ${color.toUpperCase()}`);
+    setBackgroundColor(color);
+  }, [currentSnapshot, recordHistory]);
 
   const handleDownload = useCallback(async () => {
     flushPendingResize();
@@ -343,7 +390,7 @@ export function App() {
             <EditorSidebar activeTool={activeTool} selectedAspect={selectedAspect} cropWidth={croppedAreaPixels?.width ?? null} cropHeight={croppedAreaPixels?.height ?? null} onToolChange={setActiveTool} onAspectChange={handleAspectChange} onCropReset={resetCrop} />
             <section className="canvas-workspace" aria-label="Image canvas">
               <div className="canvas-header"><div><span className="eyebrow">Canvas</span><strong>{loadedImage.element.naturalWidth} × {loadedImage.element.naturalHeight}</strong></div><span>Drag to reposition · scroll to zoom · pinch on touch</span></div>
-              <EditorToolbar canUndo={Boolean(undoStack.length)} canRedo={Boolean(redoStack.length)} zoom={cropState.zoom} rotation={cropState.transform.rotation} onReplace={replaceImage} onClear={clearImage} onUndo={performUndo} onRedo={performRedo} onRotateLeft={() => rotate(-90)} onRotateRight={() => rotate(90)} onFlipHorizontal={() => flip('x')} onFlipVertical={() => flip('y')} onReset={resetEdits} onZoomChange={handleZoom} onZoomCommit={endInteraction} onZoomInteractionStart={beginZoomInteraction} onZoomPreset={commitZoomPreset} onRotationChange={handleRotation} onRotationCommit={endInteraction} onRotationInteractionStart={beginRotationInteraction} />
+              <EditorToolbar canUndo={canUndo} canRedo={canRedo} isHistoryOpen={isHistoryOpen} onHistory={() => setIsHistoryOpen(true)} zoom={cropState.zoom} rotation={cropState.transform.rotation} onReplace={replaceImage} onClear={clearImage} onUndo={performUndo} onRedo={performRedo} onRotateLeft={() => rotate(-90)} onRotateRight={() => rotate(90)} onFlipHorizontal={() => flip('x')} onFlipVertical={() => flip('y')} onReset={resetEdits} onZoomChange={handleZoom} onZoomPreset={commitZoomPreset} onRotationChange={handleRotation} onRotationCommit={endInteraction} onRotationInteractionStart={beginRotationInteraction} />
               <div className="canvas-stage">
                 <Cropper image={loadedImage.src} crop={cropState.crop} zoom={cropState.zoom} minZoom={MIN_ZOOM} maxZoom={MAX_ZOOM} zoomWithScroll aspect={selectedAspect ?? 0} onCropChange={(crop: Point) => setCropState((prev) => ({ ...prev, crop }))} onZoomChange={handleZoom} rotation={cropState.transform.rotation} onRotationChange={handleRotation} onCropComplete={(_area, pixels) => setCroppedAreaPixels(pixels)} onInteractionStart={beginCropInteraction} onInteractionEnd={endInteraction} keyboardStep={5} showGrid transform={cropperTransform} />
               </div>
@@ -374,17 +421,17 @@ export function App() {
                 onQualityCommit={handleQualityCommit}
                 onWidthChange={(value) => handleDimension('width', value)}
                 onHeightChange={(value) => handleDimension('height', value)}
-                onLockToggle={() => setLockAspectRatio((prev) => !prev)}
-                onBackgroundChange={setBackgroundColor}
+                onLockToggle={handleLockToggle}
+                onBackgroundChange={handleBackgroundChange}
                 onDownload={() => void handleDownload()}
                               />
-              <HistoryPanel entries={undoStack} redoCount={redoStack.length} />
             </div>
           </div>
         </div>
       </>}
     </main>
     <Toast visible={toast.visible} message={toast.message} />
+    <HistoryPanel open={isHistoryOpen} entries={historyEntries} currentIndex={historyCurrentIndex} onSelect={handleHistorySelect} onClose={() => setIsHistoryOpen(false)} />
     <footer className="app-footer"><div className="footer-content"><span><strong>CropLab</strong> · Private by design</span><span>JPEG · PNG · WebP · runs entirely in your browser</span><span>© {new Date().getFullYear()}</span></div></footer>
   </div>;
 }

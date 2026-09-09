@@ -1,41 +1,50 @@
 import { useCallback, useState } from 'react';
+import { appendHistory, moveHistory, selectHistory } from '@/lib/editor/history';
 import type { EditorHistoryEntry, EditorSnapshot } from '@/types/editor';
 
-const MAX_HISTORY = 50;
+export function useEditorHistory(initialSnapshot: EditorSnapshot) {
+  const [entries, setEntries] = useState<EditorHistoryEntry[]>(() => [{ id: 'original', label: 'Original', snapshot: initialSnapshot }]);
+  const [currentIndex, setCurrentIndex] = useState(0);
 
-function trim(entries: EditorHistoryEntry[]): EditorHistoryEntry[] {
-  return entries.length > MAX_HISTORY ? entries.slice(entries.length - MAX_HISTORY) : entries;
-}
+  const record = useCallback((snapshot: EditorSnapshot, label: string) => {
+    const next = appendHistory(entries, currentIndex, snapshot, label);
+    if (next.entries === entries) return;
+    setEntries(next.entries);
+    setCurrentIndex(next.currentIndex);
+  }, [currentIndex, entries]);
 
-export function useEditorHistory() {
-  const [undoStack, setUndoStack] = useState<EditorHistoryEntry[]>([]);
-  const [redoStack, setRedoStack] = useState<EditorHistoryEntry[]>([]);
-
-  const saveState = useCallback((snapshot: EditorSnapshot, label: string) => {
-    setUndoStack((prev) => trim([...prev, { id: crypto.randomUUID(), label, snapshot }]));
-    setRedoStack([]);
+  const resetHistory = useCallback((snapshot: EditorSnapshot) => {
+    setEntries([{ id: 'original', label: 'Original', snapshot }]);
+    setCurrentIndex(0);
   }, []);
 
-  const resetHistory = useCallback(() => {
-    setUndoStack([]);
-    setRedoStack([]);
-  }, []);
+  const undo = useCallback(() => {
+    const next = moveHistory(entries, currentIndex, -1);
+    if (next.snapshot) setCurrentIndex(next.currentIndex);
+    return next.snapshot;
+  }, [currentIndex, entries]);
 
-  const undo = useCallback((current: EditorSnapshot) => {
-    if (!undoStack.length) return null;
-    const entry = undoStack[undoStack.length - 1];
-    setRedoStack((prev) => [{ id: crypto.randomUUID(), label: entry.label, snapshot: current }, ...prev].slice(0, MAX_HISTORY));
-    setUndoStack((prev) => prev.slice(0, -1));
-    return entry.snapshot;
-  }, [undoStack]);
+  const redo = useCallback(() => {
+    const next = moveHistory(entries, currentIndex, 1);
+    if (next.snapshot) setCurrentIndex(next.currentIndex);
+    return next.snapshot;
+  }, [currentIndex, entries]);
 
-  const redo = useCallback((current: EditorSnapshot) => {
-    if (!redoStack.length) return null;
-    const entry = redoStack[0];
-    setUndoStack((prev) => trim([...prev, { id: crypto.randomUUID(), label: entry.label, snapshot: current }]));
-    setRedoStack((prev) => prev.slice(1));
-    return entry.snapshot;
-  }, [redoStack]);
+  const jumpTo = useCallback((index: number) => {
+    const next = selectHistory(entries, currentIndex, index);
+    if (next.snapshot) setCurrentIndex(next.currentIndex);
+    return next.snapshot;
+  }, [currentIndex, entries]);
 
-  return { undoStack, redoStack, saveState, resetHistory, undo, redo };
+  return {
+    entries,
+    currentIndex,
+    canUndo: currentIndex > 0,
+    canRedo: currentIndex < entries.length - 1,
+    record,
+    resetHistory,
+    undo,
+    redo,
+    jumpTo,
+  };
 }

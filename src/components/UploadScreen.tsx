@@ -41,9 +41,10 @@ export function UploadScreen({ onLoad }: { onLoad: (file: File) => void }) {
           <p>Drag & drop an image here, or click to select</p>
           <p className="small">You can also paste an image with Ctrl/Cmd+V</p>
           <input
+            id="upload-image-input"
             ref={inputRef}
             type="file"
-            accept="image/*"
+            accept="image/jpeg,image/png,image/webp,image/gif"
             hidden
             onChange={(event) => {
               const file = event.target.files?.[0];

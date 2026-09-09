@@ -1,26 +1,85 @@
-import { History } from 'lucide-react';
+import { useEffect, useRef } from 'react';
+import { Check, History, X } from 'lucide-react';
+import { ASPECT_RATIOS } from '@/lib/image/constants';
 import type { EditorHistoryEntry } from '@/types/editor';
 
 type Props = {
+  open: boolean;
   entries: readonly EditorHistoryEntry[];
-  redoCount: number;
+  currentIndex: number;
+  onSelect: (index: number) => void;
+  onClose: () => void;
 };
 
-export function HistoryPanel({ entries, redoCount }: Props) {
-  const recent = [...entries].reverse().slice(0, 12);
+function formatRatio(value: number | null): string {
+  if (value === null) return 'Free crop';
+  const match = ASPECT_RATIOS.find((ratio) => ratio.value !== null && Math.abs(ratio.value - value) < 0.001);
+  return match?.label ?? `${value.toFixed(2)}:1`;
+}
+
+function getDetails(entry: EditorHistoryEntry): string {
+  const { snapshot } = entry;
+  const details: string[] = [];
+  if (entry.label.startsWith('Resize')) {
+    details.push(snapshot.width && snapshot.height ? `${snapshot.width} × ${snapshot.height}` : 'Auto dimensions');
+  }
+  if (entry.label.startsWith('Crop')) details.push(formatRatio(snapshot.selectedAspect));
+  if (entry.label.startsWith('Rotate')) details.push(`${Math.round(snapshot.cropState.transform.rotation)}°`);
+  if (entry.label.startsWith('Flip')) details.push(`${snapshot.cropState.transform.flipX ? 'H' : ''}${snapshot.cropState.transform.flipY ? ' V' : ''}`.trim());
+  if (entry.label.startsWith('Quality')) details.push(`${Math.round(snapshot.quality * 100)}%`);
+  if (entry.label.startsWith('Format')) details.push(snapshot.format.toUpperCase());
+  if (snapshot.width && snapshot.height && !entry.label.startsWith('Resize')) details.push(`${snapshot.width} × ${snapshot.height}`);
+  return details.join(' · ') || 'Editor state';
+}
+
+export function HistoryPanel({ open, entries, currentIndex, onSelect, onClose }: Props) {
+  const closeButtonRef = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    closeButtonRef.current?.focus();
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [onClose, open]);
+
+  if (!open) return null;
 
   return (
-    <section className="history-panel" aria-label="Edit history">
-      <div className="history-heading">
-        <div><div className="panel-label">History</div><h2><History size={14} /> Operations</h2></div>
-        <span>{entries.length + redoCount}</span>
-      </div>
-      {recent.length ? (
-        <ol className="history-list">
-          {recent.map((entry) => <li key={entry.id}>{entry.label}</li>)}
-        </ol>
-      ) : <p className="history-empty">No edits yet. Your next change will appear here.</p>}
-      {redoCount > 0 && <div className="history-redo">{redoCount} redo {redoCount === 1 ? 'step' : 'steps'} available</div>}
-    </section>
+    <div className="history-overlay" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
+      <section className="history-dialog" role="dialog" aria-modal="true" aria-labelledby="history-dialog-title">
+        <header className="history-dialog-header">
+          <div>
+            <div className="panel-label">History</div>
+            <h2 id="history-dialog-title"><History size={16} /> Edit history</h2>
+            <p>Select any state to return the editor to that exact point. New edits from an older state replace the future branch.</p>
+          </div>
+          <button ref={closeButtonRef} className="history-close" onClick={onClose} aria-label="Close history"><X size={17} /></button>
+        </header>
+        <div className="history-dialog-body">
+          <ol className="history-timeline">
+            {entries.map((entry, index) => {
+              const isCurrent = index === currentIndex;
+              const isFuture = index > currentIndex;
+              return (
+                <li key={entry.id} className={`${isCurrent ? 'current' : ''} ${isFuture ? 'future' : ''}`}>
+                  <button className="history-entry" onClick={() => onSelect(index)} aria-current={isCurrent ? 'step' : undefined}>
+                    <span className="history-entry-marker">{isCurrent ? <Check size={12} /> : index === 0 ? <span className="history-entry-dot" /> : index}</span>
+                    <span className="history-entry-copy"><strong>{entry.label}</strong><small>{getDetails(entry)}</small></span>
+                    {isCurrent && <span className="history-current">Current</span>}
+                  </button>
+                </li>
+              );
+            })}
+          </ol>
+        </div>
+        <footer className="history-dialog-footer"><span>{entries.length - 1} {entries.length - 1 === 1 ? 'operation' : 'operations'}</span><span>Up to 50 operations retained</span></footer>
+      </section>
+    </div>
   );
 }

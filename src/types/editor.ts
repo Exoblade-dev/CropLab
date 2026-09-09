@@ -7,15 +7,17 @@ export type CropState = { crop: Point; zoom: number; transform: TransformState }
 export type AspectRatio = { label: string; value: number | null };
 export type EditorSnapshot = {
   cropState: CropState;
+  cropArea: Area | null;
   selectedAspect: number | null;
   width: number | null;
   height: number | null;
+  lockAspectRatio: boolean;
   format: ImageFormat;
   quality: number;
   backgroundColor: string;
 };
 export type EditorHistoryEntry = { id: string; label: string; snapshot: EditorSnapshot };
-export type EditorHistoryState = { undo: EditorHistoryEntry[]; redo: EditorHistoryEntry[] };
+export type EditorHistoryState = { entries: EditorHistoryEntry[]; currentIndex: number };
 export type ExportSettings = {
   format: ImageFormat;
   quality: number;

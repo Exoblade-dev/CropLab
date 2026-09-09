@@ -131,3 +131,60 @@ describe('v1.7 keyboard interaction system', () => {
     expect(getEditorShortcut({ key: 'r', ctrlKey: false, metaKey: false, altKey: false, shiftKey: false }, true)).toBeNull();
   });
 });
+
+describe('v1.7 history timeline', () => {
+  const snapshot = (zoom: number): import('@/types/editor').EditorSnapshot => ({
+    cropState: {
+      crop: { x: 50, y: 50 },
+      zoom,
+      transform: { rotation: 0, flipX: false, flipY: false },
+    },
+    cropArea: null,
+    selectedAspect: null,
+    width: null,
+    height: null,
+    lockAspectRatio: true,
+    format: 'png',
+    quality: 0.9,
+    backgroundColor: '#ffffff',
+  });
+
+  it('jumps directly to a selected state', async () => {
+    const { appendHistory, selectHistory } = await import('@/lib/editor/history');
+    const first = [{ id: 'original', label: 'Original', snapshot: snapshot(1) }];
+    const second = appendHistory(first, 0, snapshot(1.2), 'Rotate 90°');
+    const third = appendHistory(second.entries, second.currentIndex, snapshot(1.4), 'Resize → 1600 × 900');
+    const selected = selectHistory(third.entries, third.currentIndex, 1);
+    expect(selected.currentIndex).toBe(1);
+    expect(selected.snapshot?.cropState.zoom).toBe(1.2);
+  });
+
+  it('removes the future branch when editing from an older state', async () => {
+    const { appendHistory, selectHistory } = await import('@/lib/editor/history');
+    const first = [{ id: 'original', label: 'Original', snapshot: snapshot(1) }];
+    const second = appendHistory(first, 0, snapshot(1.2), 'Rotate 90°');
+    const third = appendHistory(second.entries, second.currentIndex, snapshot(1.4), 'Resize → 1600 × 900');
+    const selected = selectHistory(third.entries, third.currentIndex, 1);
+    const branched = appendHistory(selected.entries, selected.currentIndex, snapshot(1.6), 'Flip horizontal');
+    expect(branched.entries.map((entry) => entry.label)).toEqual(['Original', 'Rotate 90°', 'Flip horizontal']);
+  });
+
+  it('keeps the original state plus at most 50 operations', async () => {
+    const { appendHistory } = await import('@/lib/editor/history');
+    let result = { entries: [{ id: 'original', label: 'Original', snapshot: snapshot(1) }], currentIndex: 0 };
+    for (let index = 1; index <= 60; index += 1) {
+      result = appendHistory(result.entries, result.currentIndex, snapshot(index), `Operation ${index}`);
+    }
+    expect(result.entries).toHaveLength(51);
+    expect(result.entries[0].label).toBe('Original');
+    expect(result.entries.at(-1)?.label).toBe('Operation 60');
+  });
+
+  it('does not add a duplicate state', async () => {
+    const { appendHistory } = await import('@/lib/editor/history');
+    const first = [{ id: 'original', label: 'Original', snapshot: snapshot(1) }];
+    const duplicate = appendHistory(first, 0, snapshot(1), 'No change');
+    expect(duplicate.entries).toBe(first);
+    expect(duplicate.currentIndex).toBe(0);
+  });
+});
