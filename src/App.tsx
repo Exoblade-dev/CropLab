@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Cropper, { type Area, type Point } from 'react-easy-crop';
+import { X } from 'lucide-react';
 import { AppHeader } from '@/components/AppHeader';
 import { EditorSidebar, type EditorTool } from '@/components/EditorSidebar';
 import { EditorToolbar } from '@/components/EditorToolbar';
@@ -403,7 +404,23 @@ export function App() {
               </div>
               <div className="canvas-footer"><span>Persistent transforms stay available above the canvas.</span><span>{loadedImage.format === 'gif' ? 'GIF edits use the first frame and export as a static image.' : 'Edits stay in this browser.'}</span></div>
             </section>
-            <div className={`right-workspace-column ${mobilePanel === 'export' ? 'mobile-open' : ''}`}>
+            <div
+              className={`right-workspace-column ${mobilePanel === 'export' ? 'mobile-open' : ''}`}
+              onClick={(event) => {
+                if (event.target === event.currentTarget) setMobilePanel(null);
+              }}
+            >
+              {mobilePanel === 'export' && (
+                <button
+                  type="button"
+                  className="mobile-export-close"
+                  onClick={() => setMobilePanel(null)}
+                  aria-label="Close export"
+                  title="Close export"
+                >
+                  <X size={18} />
+                </button>
+              )}
               <ExportPanel
                 originalWidth={loadedImage.element.naturalWidth}
                 originalHeight={loadedImage.element.naturalHeight}

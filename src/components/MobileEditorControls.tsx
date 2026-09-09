@@ -115,15 +115,20 @@ export function MobileEditorControls({
           <Redo2 size={16} />
         </button>
         <span className="mobile-quick-divider" aria-hidden="true" />
+        <button className="mobile-quick-button" onClick={onRotateLeft} aria-label="Rotate left 90 degrees" title="Rotate left 90 degrees">
+          <RotateCcw size={16} />
+        </button>
+        <button className="mobile-quick-button" onClick={onRotateRight} aria-label="Rotate right 90 degrees" title="Rotate right 90 degrees">
+          <RotateCw size={16} />
+        </button>
+        <span className="mobile-quick-divider" aria-hidden="true" />
         <button className="mobile-quick-button" onClick={() => onZoomPreset(zoom - 0.1)} aria-label="Zoom out" title="Zoom out">
           <ZoomOut size={16} />
         </button>
-        <button className="mobile-quick-value" onClick={() => onZoomPreset(0.2)} aria-label="Fit image" title="Fit image">Fit</button>
         <button className={`mobile-quick-value ${Math.abs(zoom - 1) < 0.01 ? 'active' : ''}`} onClick={() => onZoomPreset(1)} aria-label="Zoom to 100 percent" title="100 percent">100%</button>
         <button className="mobile-quick-button" onClick={() => onZoomPreset(zoom + 0.1)} aria-label="Zoom in" title="Zoom in">
           <ZoomIn size={16} />
         </button>
-        <span className="mobile-quick-zoom" aria-live="polite">{Math.round(zoom * 100)}%</span>
       </div>
 
       <nav className="mobile-bottom-bar" aria-label="Mobile editor controls">

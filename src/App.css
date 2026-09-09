@@ -202,10 +202,10 @@ button:focus-visible, input:focus-visible, select:focus-visible {
     display: flex;
     flex-direction: column;
     max-width: none;
-    justify-content: center;
   }
   .tools-panel { display: none; }
   .canvas-workspace {
+    flex: 1 1 auto;
     width: 100%;
     height: auto;
     min-height: 0;
@@ -218,32 +218,55 @@ button:focus-visible, input:focus-visible, select:focus-visible {
   .canvas-header > span { display: none; }
   .persistent-toolbar { display: none; }
   .canvas-stage {
-    flex: 0 0 min(42dvh, 300px);
-    min-height: 190px;
-    max-height: 300px;
+    flex: 1 1 auto;
+    min-height: 0;
+    max-height: none;
   }
   .canvas-footer { display: none; }
 
   .right-workspace-column { display: none; }
   .workspace-grid.mobile-export-open .right-workspace-column.mobile-open {
-    position: absolute;
+    position: fixed;
     inset: 0;
-    z-index: 30;
-    display: block;
+    z-index: 80;
+    display: flex;
+    align-items: center;
+    justify-content: center;
     min-width: 0;
-    height: 100%;
-    background: var(--bg);
+    height: 100dvh;
+    padding: 16px;
+    background: rgba(0, 0, 0, .58);
+    backdrop-filter: blur(4px);
   }
   .workspace-grid.mobile-export-open .right-workspace-column.mobile-open > .export-panel {
-    width: 100%;
-    height: 100%;
+    position: relative;
+    width: min(92vw, 520px);
+    height: min(88dvh, 720px);
     min-height: 0;
-    max-height: 100%;
-    overflow-y: auto;
+    max-height: 88dvh;
+    overflow: hidden;
     overscroll-behavior: contain;
-    border-radius: 8px;
-    padding-bottom: 16px;
+    border-radius: 10px;
+    padding-bottom: 0;
+    box-shadow: 0 24px 70px rgba(0,0,0,.4);
   }
+  .mobile-export-close {
+    position: absolute;
+    top: max(10px, env(safe-area-inset-top));
+    right: max(10px, env(safe-area-inset-right));
+    z-index: 2;
+    width: 40px;
+    height: 40px;
+    display: grid;
+    place-items: center;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--surface);
+    color: var(--text);
+    box-shadow: 0 8px 24px rgba(0,0,0,.2);
+    cursor: pointer;
+  }
+  .mobile-export-close:hover { background: var(--surface-2); }
 
   .mobile-quick-bar {
     position: relative;
@@ -412,7 +435,7 @@ button:focus-visible, input:focus-visible, select:focus-visible {
 @media (max-width: 480px) {
   .workspace-shell { padding: 6px; gap: 6px; }
   .canvas-header { padding: 7px 8px; }
-  .canvas-stage { flex-basis: min(40dvh, 270px); min-height: 175px; max-height: 270px; }
+  .canvas-stage { flex: 1 1 auto; min-height: 0; max-height: none; }
   .mobile-quick-bar { flex-basis: 40px; }
   .mobile-quick-button, .mobile-quick-value { min-width: 34px; min-height: 32px; }
   .mobile-bottom-bar { flex-basis: 56px; padding: 3px; }
