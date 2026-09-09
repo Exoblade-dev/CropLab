@@ -3,6 +3,7 @@ import '../index.css';
 import '../App.css';
 import '../history.css';
 import '../export.css';
+import '../cropper.css';
 
 export const viewport: Viewport = {
   width: 'device-width',

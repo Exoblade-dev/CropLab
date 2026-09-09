@@ -88,20 +88,6 @@ export function MobileEditorControls({
                 <button className="mobile-control-button" onClick={onClear}><Trash2 size={17} /><span>Clear</span></button>
                 <button className="mobile-control-button" onClick={onReset}><ResetIcon size={17} /><span>Reset</span></button>
               </div>
-              <div className="mobile-section-label">Zoom · {Math.round(zoom * 100)}%</div>
-              <div className="mobile-zoom-row">
-                <button className="mobile-icon-button" onClick={() => onZoomPreset(zoom - 0.1)} aria-label="Zoom out"><ZoomOut size={18} /></button>
-                <button className="mobile-secondary-button" onClick={() => onZoomPreset(0.2)}>Fit</button>
-                <button className="mobile-secondary-button" onClick={() => onZoomPreset(1)}>100%</button>
-                <button className="mobile-secondary-button" onClick={() => onZoomPreset(2)}>200%</button>
-                <button className="mobile-icon-button" onClick={() => onZoomPreset(zoom + 0.1)} aria-label="Zoom in"><ZoomIn size={18} /></button>
-              </div>
-              <div className="mobile-flip-row">
-                <button className="mobile-secondary-button" onClick={onFlipHorizontal}><FlipHorizontal size={15} /> Flip H</button>
-                <button className="mobile-secondary-button" onClick={onFlipVertical}><FlipHorizontal size={15} className="flip-vertical-icon" /> Flip V</button>
-                <button className="mobile-secondary-button" onClick={onRotateLeft} aria-label="Rotate left 90 degrees"><RotateCcw size={15} /> Rotate left</button>
-                <button className="mobile-secondary-button" onClick={onRotateRight} aria-label="Rotate right 90 degrees"><RotateCw size={15} /> Rotate right</button>
-              </div>
             </div>
           )}
         </section>
@@ -122,19 +108,24 @@ export function MobileEditorControls({
           <RotateCw size={16} />
         </button>
         <span className="mobile-quick-divider" aria-hidden="true" />
+        <button className="mobile-quick-button" onClick={onFlipHorizontal} aria-label="Flip horizontally" title="Flip horizontal">
+          <FlipHorizontal size={16} />
+        </button>
+        <button className="mobile-quick-button" onClick={onFlipVertical} aria-label="Flip vertically" title="Flip vertical">
+          <FlipHorizontal size={16} className="flip-vertical-icon" />
+        </button>
+        <span className="mobile-quick-divider" aria-hidden="true" />
+        <button className="mobile-quick-button" onClick={() => onZoomPreset(zoom + 0.1)} aria-label="Zoom in" title="Zoom in">
+          <ZoomIn size={16} />
+        </button>
         <button className="mobile-quick-button" onClick={() => onZoomPreset(zoom - 0.1)} aria-label="Zoom out" title="Zoom out">
           <ZoomOut size={16} />
         </button>
         <button className={`mobile-quick-value ${Math.abs(zoom - 1) < 0.01 ? 'active' : ''}`} onClick={() => onZoomPreset(1)} aria-label="Zoom to 100 percent" title="100 percent">100%</button>
-        <button className="mobile-quick-button" onClick={() => onZoomPreset(zoom + 0.1)} aria-label="Zoom in" title="Zoom in">
-          <ZoomIn size={16} />
-        </button>
       </div>
 
-      <nav className="mobile-bottom-bar" aria-label="Mobile editor controls">
+      <nav className="mobile-bottom-bar" aria-label="Mobile editor controls" style={{ gridTemplateColumns: 'repeat(3, minmax(0, 1fr))' }}>
         <button className={panel === 'crop' ? 'active' : ''} onClick={() => onPanelChange(panel === 'crop' ? null : 'crop')} aria-pressed={panel === 'crop'}><Crop size={18} /><span>Crop</span></button>
-        <button onClick={onRotateRight} aria-label="Rotate right 90 degrees"><RotateCw size={18} /><span>Rotate</span></button>
-        <button onClick={onFlipHorizontal} aria-label="Flip horizontal"><FlipHorizontal size={18} /><span>Flip</span></button>
         <button className={panel === 'more' ? 'active' : ''} onClick={() => onPanelChange(panel === 'more' ? null : 'more')} aria-pressed={panel === 'more'}><MoreHorizontal size={18} /><span>More</span></button>
         <button className={panel === 'export' ? 'active' : ''} onClick={() => onPanelChange(panel === 'export' ? null : 'export')} aria-pressed={panel === 'export'}><span className="mobile-export-icon">↓</span><span>Export</span></button>
       </nav>

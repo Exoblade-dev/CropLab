@@ -1,0 +1,21 @@
+/* v1.8 crop interaction hardening */
+.canvas-stage > .reactEasyCrop_Container {
+  position: absolute !important;
+  inset: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+  pointer-events: auto !important;
+  touch-action: none !important;
+  cursor: grab;
+  z-index: 1;
+}
+
+.canvas-stage > .reactEasyCrop_Container:active {
+  cursor: grabbing;
+}
+
+@media (max-width: 900px) {
+  .workspace-grid {
+    width: 100%;
+  }
+}
