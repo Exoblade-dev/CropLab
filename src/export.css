@@ -1,8 +1,31 @@
+/* Keep the editor viewport bounded while the v2 export panel is mounted.
+   This prevents short desktop viewports from letting the workspace extend
+   underneath the application footer. */
+.app:has(.export-panel-v2) {
+  height: 100dvh;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.app:has(.export-panel-v2) .app-main {
+  min-height: 0;
+  overflow: hidden;
+}
+
+.app:has(.export-panel-v2) .workspace-shell {
+  height: 100%;
+  min-height: 0;
+}
+
 /* Export panel v2 — isolated to the export surface. */
 .export-panel-v2 {
+  grid-row: 1;
+  align-self: stretch;
   padding: 0;
   overflow: hidden;
   min-height: 0;
+  height: 100%;
+  max-height: 100%;
 }
 
 .export-v2-header {
@@ -433,6 +456,8 @@
 
 @media (max-width: 900px) {
   .export-panel-v2 {
+    height: auto;
+    max-height: none;
     overflow: visible;
   }
 
