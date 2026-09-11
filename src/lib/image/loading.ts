@@ -1,7 +1,20 @@
 import { validateCanvasDimensions, validateImageDimensions, validateImageFile, type InputImageFormat } from './validation';
 import type { LoadedImage } from '@/types/editor';
+import { measureAsync, measureSync } from '@/lib/performance/metrics';
 
 export async function loadImageFile(file: File): Promise<LoadedImage> {
+  return measureAsync(
+    'croplab.image.load',
+    () => loadImageFileInternal(file),
+    {
+      fileBytes: file.size,
+      fileType: file.type,
+      fileName: file.name,
+    },
+  );
+}
+
+async function loadImageFileInternal(file: File): Promise<LoadedImage> {
   const validation = await validateImageFile(file);
   if (validation.valid === false) throw new Error(validation.message);
 
@@ -14,7 +27,15 @@ export async function loadImageFile(file: File): Promise<LoadedImage> {
     const format: InputImageFormat = validation.format ?? 'png';
     if (format !== 'gif') return { src, element, fileSize: file.size, format };
 
-    const staticImage = await materializeGifFirstFrame(element);
+    const staticImage = await measureAsync(
+      'croplab.image.gif-first-frame',
+      () => materializeGifFirstFrame(element),
+      {
+        width: element.naturalWidth,
+        height: element.naturalHeight,
+        pixels: element.naturalWidth * element.naturalHeight,
+      },
+    );
     URL.revokeObjectURL(src);
     return { src: staticImage.src, element: staticImage.element, fileSize: file.size, format };
   } catch (error) {
@@ -24,15 +45,15 @@ export async function loadImageFile(file: File): Promise<LoadedImage> {
 }
 
 function decodeImage(src: string): Promise<HTMLImageElement> {
-  return new Promise((resolve, reject) => {
+  return measureAsync('croplab.image.decode', () => new Promise((resolve, reject) => {
     const image = new Image();
     image.decoding = 'async';
     image.onload = () => {
-      void image.decode().then(() => resolve(image)).catch(() => reject(new Error('Failed to decode image. File may be corrupted.')));
+      image.decode().then(() => resolve(image)).catch(() => reject(new Error('Failed to decode image. File may be corrupted.')));
     };
     image.onerror = () => reject(new Error('Failed to load image. File may be corrupted.'));
     image.src = src;
-  });
+  }));
 }
 
 async function materializeGifFirstFrame(image: HTMLImageElement): Promise<{ src: string; element: HTMLImageElement }> {
@@ -42,16 +63,36 @@ async function materializeGifFirstFrame(image: HTMLImageElement): Promise<{ src:
   const canvas = document.createElement('canvas');
   canvas.width = image.naturalWidth;
   canvas.height = image.naturalHeight;
+
   const context = canvas.getContext('2d');
   if (!context) throw new Error('Browser could not create a canvas for the GIF first frame');
 
-  context.drawImage(image, 0, 0);
-  const blob = await new Promise<Blob>((resolve, reject) => {
-    canvas.toBlob((next) => {
-      if (next) resolve(next);
-      else reject(new Error('Browser could not create a static GIF frame'));
-    }, 'image/png');
-  });
+  measureSync(
+    'croplab.image.gif-first-frame.draw',
+    () => {
+      context.drawImage(image, 0, 0);
+    },
+    {
+      width: image.naturalWidth,
+      height: image.naturalHeight,
+      pixels: image.naturalWidth * image.naturalHeight,
+    },
+  );
+
+  const blob = await measureAsync(
+    'croplab.image.gif-first-frame.encode',
+    () => new Promise<Blob>((resolve, reject) => {
+      canvas.toBlob((next) => {
+        if (next) resolve(next);
+        else reject(new Error('Browser could not create a static GIF frame'));
+      }, 'image/png');
+    }),
+    {
+      width: image.naturalWidth,
+      height: image.naturalHeight,
+      pixels: image.naturalWidth * image.naturalHeight,
+    },
+  );
 
   const src = URL.createObjectURL(blob);
   try {

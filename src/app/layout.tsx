@@ -4,6 +4,7 @@ import '../App.css';
 import '../history.css';
 import '../export.css';
 import '../cropper.css';
+import '../dialogs.css';
 
 export const viewport: Viewport = {
   width: 'device-width',

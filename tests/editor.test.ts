@@ -87,10 +87,10 @@ describe('v1.6 image handling', () => {
     expect(detectImageFormat(new Uint8Array([0, 1, 2, 3]))).toBeNull();
   });
 
-  it('rejects dimensions outside the safe image and canvas limits', () => {
-    expect(validateImageDimensions(8192, 4096)).toEqual({ valid: true });
+  it('accepts the v1.9 50 MP safety ceiling and rejects larger images', () => {
+    expect(validateImageDimensions(8064, 6048)).toEqual({ valid: true });
+    expect(validateImageDimensions(8192, 6104)).toEqual({ valid: false, message: expect.stringContaining('pixels') });
     expect(validateImageDimensions(8193, 100)).toEqual({ valid: false, message: expect.stringContaining('8192') });
-    expect(validateImageDimensions(8000, 5001)).toEqual({ valid: false, message: expect.stringContaining('pixels') });
     expect(validateImageDimensions(0, 100)).toEqual({ valid: false, message: 'Image has invalid dimensions' });
     expect(validateCanvasDimensions(8192, 4096)).toEqual({ valid: true });
     expect(validateCanvasDimensions(9000, 1000)).toEqual({ valid: false, message: expect.stringContaining('8192') });
@@ -172,9 +172,7 @@ describe('v1.7 history timeline', () => {
   it('keeps the original state plus at most 50 operations', async () => {
     const { appendHistory } = await import('@/lib/editor/history');
     let result = { entries: [{ id: 'original', label: 'Original', snapshot: snapshot(1) }], currentIndex: 0 };
-    for (let index = 1; index <= 60; index += 1) {
-      result = appendHistory(result.entries, result.currentIndex, snapshot(index), `Operation ${index}`);
-    }
+    for (let index = 1; index <= 60; index += 1) result = appendHistory(result.entries, result.currentIndex, snapshot(index), `Operation ${index}`);
     expect(result.entries).toHaveLength(51);
     expect(result.entries[0].label).toBe('Original');
     expect(result.entries.at(-1)?.label).toBe('Operation 60');

@@ -2,6 +2,7 @@ import type { Area } from 'react-easy-crop';
 import type { ExportSettings, ImageFormat, TransformState } from '@/types/editor';
 import { getFormatDefinition } from '@/lib/image/formats';
 import { validateCanvasDimensions } from '@/lib/image/validation';
+import { measureAsync, measureSync } from '@/lib/performance/metrics';
 
 export function getOutputDimensions(crop: Area, settings: ExportSettings) {
   let width = crop.width;
@@ -55,39 +56,67 @@ export function createExportCanvas(
     ctx.fillRect(0, 0, width, height);
   }
 
-  ctx.save();
-  ctx.translate(width / 2, height / 2);
-  ctx.rotate((transform.rotation * Math.PI) / 180);
-  if (transform.flipX) ctx.scale(-1, 1);
-  if (transform.flipY) ctx.scale(1, -1);
-  ctx.translate(-width / 2, -height / 2);
-  ctx.drawImage(image, crop.x, crop.y, crop.width, crop.height, 0, 0, width, height);
-  ctx.restore();
+  measureSync(
+    'croplab.export.canvas-draw',
+    () => {
+      ctx.save();
+      ctx.translate(width / 2, height / 2);
+      ctx.rotate((transform.rotation * Math.PI) / 180);
+      if (transform.flipX) ctx.scale(-1, 1);
+      if (transform.flipY) ctx.scale(1, -1);
+      ctx.translate(-width / 2, -height / 2);
+      ctx.drawImage(image, crop.x, crop.y, crop.width, crop.height, 0, 0, width, height);
+      ctx.restore();
+    },
+    {
+      format: settings.format,
+      sourceWidth: image.naturalWidth,
+      sourceHeight: image.naturalHeight,
+      cropWidth: crop.width,
+      cropHeight: crop.height,
+      outputWidth: width,
+      outputHeight: height,
+      outputPixels: width * height,
+      rotation: transform.rotation,
+      flipX: transform.flipX,
+      flipY: transform.flipY,
+    },
+  );
 
   return canvas;
 }
 
 export function encodeCanvas(canvas: HTMLCanvasElement, settings: ExportSettings): Promise<Blob> {
   const definition = getFormatDefinition(settings.format);
-  return new Promise((resolve, reject) => {
-    const callback = (blob: Blob | null) => {
-      if (!blob) {
-        reject(new Error(`Browser could not encode ${definition.label}`));
-        return;
-      }
-      if (blob.type !== definition.mimeType) {
-        reject(new Error(`${definition.label} encoding is not supported by this browser`));
-        return;
-      }
-      resolve(blob);
-    };
+  return measureAsync(
+    'croplab.export.encode',
+    () => new Promise((resolve, reject) => {
+      const callback = (blob: Blob | null) => {
+        if (!blob) {
+          reject(new Error(`Browser could not encode ${definition.label}`));
+          return;
+        }
+        if (blob.type !== definition.mimeType) {
+          reject(new Error(`${definition.label} encoding is not supported by this browser`));
+          return;
+        }
+        resolve(blob);
+      };
 
-    if (definition.supportsQuality) {
-      canvas.toBlob(callback, definition.mimeType, settings.quality);
-    } else {
-      canvas.toBlob(callback, definition.mimeType);
-    }
-  });
+      if (definition.supportsQuality) {
+        canvas.toBlob(callback, definition.mimeType, settings.quality);
+      } else {
+        canvas.toBlob(callback, definition.mimeType);
+      }
+    }),
+    {
+      format: settings.format,
+      width: canvas.width,
+      height: canvas.height,
+      pixels: canvas.width * canvas.height,
+      quality: definition.supportsQuality ? settings.quality : null,
+    },
+  );
 }
 
 export async function exportCanvasImage(
@@ -96,7 +125,20 @@ export async function exportCanvasImage(
   transform: TransformState,
   settings: ExportSettings,
 ): Promise<Blob> {
-  return encodeCanvas(createExportCanvas(image, crop, transform, settings), settings);
+  return measureAsync(
+    'croplab.export.total',
+    async () => {
+      const canvas = createExportCanvas(image, crop, transform, settings);
+      return encodeCanvas(canvas, settings);
+    },
+    {
+      format: settings.format,
+      sourceWidth: image.naturalWidth,
+      sourceHeight: image.naturalHeight,
+      outputWidth: getOutputDimensions(crop, settings).width,
+      outputHeight: getOutputDimensions(crop, settings).height,
+    },
+  );
 }
 
 export function getSizeReductionPercent(originalSize: number, outputSize: number): number {

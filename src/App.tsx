@@ -4,11 +4,13 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Cropper, { type Area, type Point } from 'react-easy-crop';
 import { X } from 'lucide-react';
 import { AppHeader } from '@/components/AppHeader';
+import { ConfirmationDialog } from '@/components/ConfirmationDialog';
 import { EditorSidebar, type EditorTool } from '@/components/EditorSidebar';
 import { EditorToolbar } from '@/components/EditorToolbar';
 import { ExportPanel } from '@/components/ExportPanel';
 import { HistoryPanel } from '@/components/HistoryPanel';
 import { MobileEditorControls } from '@/components/MobileEditorControls';
+import { ShortcutGuide } from '@/components/ShortcutGuide';
 import { Toast } from '@/components/Toast';
 import { UploadScreen } from '@/components/UploadScreen';
 import { useEditorHistory } from '@/hooks/use-editor-history';
@@ -26,6 +28,12 @@ import type { CropState, EditorSnapshot, ExportSettings, ExportStatus, ImageForm
 const DEFAULT_BACKGROUND = '#ffffff';
 
 type MobilePanel = EditorTool | 'more' | 'export' | null;
+type ConfirmationRequest = {
+  title: string;
+  message: string;
+  confirmLabel: string;
+  action: () => void;
+};
 
 const DEFAULT_EDITOR_SNAPSHOT: EditorSnapshot = {
   cropState: DEFAULT_CROP_STATE,
@@ -60,6 +68,8 @@ export function App() {
   const [backgroundColor, setBackgroundColor] = useState(DEFAULT_BACKGROUND);
   const [downloadStatus, setDownloadStatus] = useState<ExportStatus>('idle');
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
+  const [isShortcutGuideOpen, setIsShortcutGuideOpen] = useState(false);
+  const [confirmation, setConfirmation] = useState<ConfirmationRequest | null>(null);
   const closeHistory = useCallback(() => setIsHistoryOpen(false), []);
   const interactionStartRef = useRef<{ snapshot: EditorSnapshot; label: string } | null>(null);
   const resizeStartRef = useRef<EditorSnapshot | null>(null);
@@ -251,26 +261,67 @@ export function App() {
   }, [croppedAreaPixels, currentSnapshot, flushPendingResize, lockAspectRatio]);
 
   const resetEdits = useCallback(() => {
-    if (!window.confirm('Reset all edits to original state?')) return;
-    flushPendingResize();
-    recordHistory(DEFAULT_EDITOR_SNAPSHOT, 'Reset to original');
-    applySnapshot(DEFAULT_EDITOR_SNAPSHOT);
-    showToast('Reset to original');
+    setConfirmation({
+      title: 'Reset edits?',
+      message: 'Do you really want to reset the current image to its original editing state?',
+      confirmLabel: 'Yes, reset',
+      action: () => {
+        flushPendingResize();
+        recordHistory(DEFAULT_EDITOR_SNAPSHOT, 'Reset to original');
+        applySnapshot(DEFAULT_EDITOR_SNAPSHOT);
+        showToast('Reset to original');
+      },
+    });
   }, [applySnapshot, flushPendingResize, recordHistory, showToast]);
 
   const clearImage = useCallback(() => {
-    if (!window.confirm('Clear current image and return to upload screen?')) return;
-    clear();
-    resetEditor();
-    showToast('Image cleared');
+    setConfirmation({
+      title: 'Clear current image?',
+      message: 'Do you really want to remove the image you are working on and return to the upload screen? Your current edits will be lost.',
+      confirmLabel: 'Yes, clear image',
+      action: () => {
+        clear();
+        resetEditor();
+        showToast('Image cleared');
+      },
+    });
   }, [clear, resetEditor, showToast]);
 
   const replaceImage = useCallback(() => {
-    if (canUndo || canRedo) {
-      if (!window.confirm('Replace image? This will discard current edits.')) return;
+    const openPicker = () => document.getElementById('replace-image-input')?.click();
+    setConfirmation({
+      title: 'Replace image?',
+      message: 'Do you really want to replace the image you are working on? Your current edits will be discarded.',
+      confirmLabel: 'Yes, replace',
+      action: openPicker,
+    });
+  }, []);
+
+  const goHome = useCallback(() => {
+    if (!loadedImage) {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      return;
     }
-    document.getElementById('replace-image-input')?.click();
-  }, [canRedo, canUndo]);
+    setConfirmation({
+      title: 'Return to home?',
+      message: 'Do you really want to return to the CropLab home screen? Your current image and edits will be cleared.',
+      confirmLabel: 'Yes, go home',
+      action: () => {
+        clear();
+        resetEditor();
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+        showToast('Returned to home');
+      },
+    });
+  }, [clear, loadedImage, resetEditor, showToast]);
+
+  const confirmAction = useCallback(() => {
+    const action = confirmation?.action;
+    setConfirmation(null);
+    action?.();
+  }, [confirmation]);
+
+  const cancelConfirmation = useCallback(() => setConfirmation(null), []);
 
   const openImage = useCallback(() => {
     if (loadedImage) replaceImage();
@@ -315,14 +366,8 @@ export function App() {
     showToast(`Format set to ${format.toUpperCase()}`);
   }, [currentSnapshot, exportQuality, flushPendingResize, recordHistory, showToast]);
 
-  const handleQualityInteractionStart = useCallback(() => {
-    qualityStartRef.current = currentSnapshot;
-  }, [currentSnapshot]);
-
-  const handleQualityChange = useCallback((quality: number) => {
-    setExportQuality(quality);
-  }, []);
-
+  const handleQualityInteractionStart = useCallback(() => { qualityStartRef.current = currentSnapshot; }, [currentSnapshot]);
+  const handleQualityChange = useCallback((quality: number) => setExportQuality(quality), []);
   const handleQualityCommit = useCallback(() => {
     const start = qualityStartRef.current;
     qualityStartRef.current = null;
@@ -349,10 +394,8 @@ export function App() {
       showToast('No image to export');
       return;
     }
-
     setIsLoading(true);
     setDownloadStatus('preparing');
-
     try {
       await nextFrame();
       setDownloadStatus('cropping');
@@ -363,14 +406,12 @@ export function App() {
       setDownloadStatus('encoding');
       const blob = await encodeCanvas(canvas, exportSettings);
       setDownloadStatus('downloading');
-
       const url = URL.createObjectURL(blob);
       const anchor = document.createElement('a');
       anchor.href = url;
       anchor.download = `croplab-${Date.now()}.${getFileExtension(exportFormat)}`;
       anchor.click();
       window.setTimeout(() => URL.revokeObjectURL(url), 1000);
-
       setDownloadStatus('complete');
       showToast('Export complete');
       window.setTimeout(() => setDownloadStatus('idle'), 1400);
@@ -389,7 +430,13 @@ export function App() {
 
   return <div className={`app ${theme}`}>
     <a className="skip-link" href="#main-content">Skip to editor</a>
-    <AppHeader theme={theme} onToggle={() => setTheme(theme === 'light' ? 'dark' : 'light')} onExport={loadedImage ? () => setMobilePanel('export') : undefined} />
+    <AppHeader
+      theme={theme}
+      onToggle={() => setTheme(theme === 'light' ? 'dark' : 'light')}
+      onExport={loadedImage ? () => setMobilePanel('export') : undefined}
+      onHome={goHome}
+      onShortcuts={() => setIsShortcutGuideOpen(true)}
+    />
     <main className="app-main" id="main-content">
       {!loadedImage ? <UploadScreen onLoad={(file) => void loadAndReset(file)} /> : <>
         <input id="replace-image-input" type="file" accept="image/jpeg,image/png,image/webp,image/gif" hidden onChange={(event) => { const file = event.target.files?.[0]; if (file) void loadAndReset(file); event.currentTarget.value = ''; }} />
@@ -404,23 +451,8 @@ export function App() {
               </div>
               <div className="canvas-footer"><span>Persistent transforms stay available above the canvas.</span><span>{loadedImage.format === 'gif' ? 'GIF edits use the first frame and export as a static image.' : 'Edits stay in this browser.'}</span></div>
             </section>
-            <div
-              className={`right-workspace-column ${mobilePanel === 'export' ? 'mobile-open' : ''}`}
-              onClick={(event) => {
-                if (event.target === event.currentTarget) setMobilePanel(null);
-              }}
-            >
-              {mobilePanel === 'export' && (
-                <button
-                  type="button"
-                  className="mobile-export-close"
-                  onClick={() => setMobilePanel(null)}
-                  aria-label="Close export"
-                  title="Close export"
-                >
-                  <X size={18} />
-                </button>
-              )}
+            <div className={`right-workspace-column ${mobilePanel === 'export' ? 'mobile-open' : ''}`} onClick={(event) => { if (event.target === event.currentTarget) setMobilePanel(null); }}>
+              {mobilePanel === 'export' && <button type="button" className="mobile-export-close" onClick={() => setMobilePanel(null)} aria-label="Close export" title="Close export"><X size={18} /></button>}
               <ExportPanel
                 originalWidth={loadedImage.element.naturalWidth}
                 originalHeight={loadedImage.element.naturalHeight}
@@ -477,6 +509,8 @@ export function App() {
     </main>
     <Toast visible={toast.visible} message={toast.message} />
     <HistoryPanel open={isHistoryOpen} entries={historyEntries} currentIndex={historyCurrentIndex} onSelect={handleHistorySelect} onClose={closeHistory} />
+    <ShortcutGuide open={isShortcutGuideOpen} onClose={() => setIsShortcutGuideOpen(false)} />
+    <ConfirmationDialog open={confirmation !== null} title={confirmation?.title ?? ''} message={confirmation?.message ?? ''} confirmLabel={confirmation?.confirmLabel ?? 'Yes'} onConfirm={confirmAction} onCancel={cancelConfirmation} />
     <footer className="app-footer"><div className="footer-content"><span><strong>CropLab</strong> · Private by design</span><span>JPEG · PNG · WebP · runs entirely in your browser</span><span>© {new Date().getFullYear()}</span></div></footer>
   </div>;
 }
