@@ -31,6 +31,14 @@ export function getFileExtension(format: ImageFormat): string {
   return getFormatDefinition(format).extension;
 }
 
+export function getRotatedImageBounds(width: number, height: number, rotation: number) {
+  const radians = (rotation * Math.PI) / 180;
+  return {
+    width: Math.abs(Math.cos(radians) * width) + Math.abs(Math.sin(radians) * height),
+    height: Math.abs(Math.sin(radians) * width) + Math.abs(Math.cos(radians) * height),
+  };
+}
+
 export function createExportCanvas(
   image: HTMLImageElement,
   crop: Area,
@@ -56,16 +64,32 @@ export function createExportCanvas(
     ctx.fillRect(0, 0, width, height);
   }
 
+  const rotatedBounds = getRotatedImageBounds(image.naturalWidth, image.naturalHeight, transform.rotation);
+  const outputScaleX = width / crop.width;
+  const outputScaleY = height / crop.height;
+
   measureSync(
     'croplab.export.canvas-draw',
     () => {
       ctx.save();
-      ctx.translate(width / 2, height / 2);
+
+      // croppedAreaPixels is expressed in the rotated image's bounding-box
+      // coordinate space by react-easy-crop. Render that same coordinate
+      // system directly into the output canvas instead of cropping the
+      // unrotated source and rotating the result afterward.
+      ctx.scale(outputScaleX, outputScaleY);
+      ctx.translate(-crop.x, -crop.y);
+      ctx.translate(rotatedBounds.width / 2, rotatedBounds.height / 2);
       ctx.rotate((transform.rotation * Math.PI) / 180);
       if (transform.flipX) ctx.scale(-1, 1);
       if (transform.flipY) ctx.scale(1, -1);
-      ctx.translate(-width / 2, -height / 2);
-      ctx.drawImage(image, crop.x, crop.y, crop.width, crop.height, 0, 0, width, height);
+      ctx.drawImage(
+        image,
+        -image.naturalWidth / 2,
+        -image.naturalHeight / 2,
+        image.naturalWidth,
+        image.naturalHeight,
+      );
       ctx.restore();
     },
     {
