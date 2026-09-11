@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { Area } from 'react-easy-crop';
 import { createExportCanvas, encodeCanvas } from '@/lib/image/export';
 import type { ExportSettings, ExportStatus, TransformState } from '@/types/editor';
@@ -17,7 +17,9 @@ type Preview = {
   error: string | null;
 };
 
-export function useExportPreview({ image, crop, transform, settings }: Params): Preview {
+const PREVIEW_DEBOUNCE_MS = 1000;
+
+export function useExportPreview({ image, crop, transform, settings }: Params) {
   const previewKey = image && crop
     ? [
         image.src,
@@ -34,8 +36,17 @@ export function useExportPreview({ image, crop, transform, settings }: Params): 
     status: 'idle',
     error: null,
   });
+  const activeKeyRef = useRef('');
+  const blobRef = useRef<Blob | null>(null);
+  const encodingKeyRef = useRef('');
+  const encodingPromiseRef = useRef<Promise<Blob> | null>(null);
 
   useEffect(() => {
+    activeKeyRef.current = previewKey;
+    blobRef.current = null;
+    encodingKeyRef.current = '';
+    encodingPromiseRef.current = null;
+
     if (!image || !crop) return;
 
     let cancelled = false;
@@ -54,13 +65,17 @@ export function useExportPreview({ image, crop, transform, settings }: Params): 
         if (cancelled) return;
 
         setPreview((current) => ({ ...current, status: 'encoding', error: null }));
-        const blob = await encodeCanvas(canvas, settings);
+        const encodePromise = encodeCanvas(canvas, settings);
+        encodingKeyRef.current = previewKey;
+        encodingPromiseRef.current = encodePromise;
+        const blob = await encodePromise;
 
-        if (!cancelled) {
+        if (!cancelled && activeKeyRef.current === previewKey) {
+          blobRef.current = blob;
           setPreview({ key: previewKey, size: blob.size, status: 'complete', error: null });
         }
       } catch (error) {
-        if (!cancelled) {
+        if (!cancelled && activeKeyRef.current === previewKey) {
           setPreview({
             key: previewKey,
             size: null,
@@ -68,8 +83,13 @@ export function useExportPreview({ image, crop, transform, settings }: Params): 
             error: error instanceof Error ? error.message : 'Unable to estimate output size',
           });
         }
+      } finally {
+        if (encodingKeyRef.current === previewKey) {
+          encodingKeyRef.current = '';
+          encodingPromiseRef.current = null;
+        }
       }
-    }, 300);
+    }, PREVIEW_DEBOUNCE_MS);
 
     return () => {
       cancelled = true;
@@ -77,7 +97,12 @@ export function useExportPreview({ image, crop, transform, settings }: Params): 
     };
   }, [crop, image, previewKey, settings, transform]);
 
-  if (!image || !crop) return { key: '', size: null, status: 'idle', error: null };
-  if (preview.key !== previewKey) return { key: previewKey, size: null, status: 'preparing', error: null };
-  return preview;
+  const getBlob = useCallback((): Blob | null => {
+    if (!previewKey || activeKeyRef.current !== previewKey) return null;
+    return blobRef.current;
+  }, [previewKey]);
+
+  if (!image || !crop) return { key: '', size: null, status: 'idle' as ExportStatus, error: null, getBlob };
+  if (preview.key !== previewKey) return { key: previewKey, size: null, status: 'preparing' as ExportStatus, error: null, getBlob };
+  return { ...preview, getBlob };
 }

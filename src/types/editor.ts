@@ -26,6 +26,15 @@ export type ExportSettings = {
   lockAspectRatio: boolean;
   backgroundColor: string;
 };
-export type LoadedImage = { src: string; element: HTMLImageElement; fileSize: number; format: InputImageFormat };
+export type LoadedImage = {
+  src: string;
+  element: HTMLImageElement;
+  fileSize: number;
+  format: InputImageFormat;
+  previewScaleX: number;
+  previewScaleY: number;
+  previewWidth: number;
+  previewHeight: number;
+};
 export type CropArea = Area | null;
 export type ExportStatus = 'idle' | 'preparing' | 'cropping' | 'resizing' | 'encoding' | 'downloading' | 'complete' | 'error';
