@@ -1,4 +1,4 @@
-import { Download, Lock, Unlock } from 'lucide-react';
+import { Download } from 'lucide-react';
 import { formatFileSize, getSizeReductionPercent } from '@/lib/image/export';
 import type { ExportFormatDefinition } from '@/lib/image/formats';
 import type { ExportStatus, ImageFormat } from '@/types/editor';
@@ -13,9 +13,6 @@ type Props = {
   outputHeight: number | null;
   format: ImageFormat;
   quality: number;
-  width: number | null;
-  height: number | null;
-  lockAspectRatio: boolean;
   backgroundColor: string;
   estimatedSize: number | null;
   exportStatus: ExportStatus;
@@ -25,9 +22,6 @@ type Props = {
   onQualityChange: (quality: number) => void;
   onQualityInteractionStart: () => void;
   onQualityCommit: () => void;
-  onWidthChange: (value: string) => void;
-  onHeightChange: (value: string) => void;
-  onLockToggle: () => void;
   onBackgroundChange: (color: string) => void;
   onDownload: () => void;
 };
@@ -73,9 +67,6 @@ export function ExportPanel({
   outputHeight,
   format,
   quality,
-  width,
-  height,
-  lockAspectRatio,
   backgroundColor,
   estimatedSize,
   exportStatus,
@@ -85,9 +76,6 @@ export function ExportPanel({
   onQualityChange,
   onQualityInteractionStart,
   onQualityCommit,
-  onWidthChange,
-  onHeightChange,
-  onLockToggle,
   onBackgroundChange,
   onDownload,
 }: Props) {
@@ -227,37 +215,18 @@ export function ExportPanel({
           </section>
         )}
 
-        <section className="export-v2-section">
+        <section className="export-v2-section export-v2-dimensions-summary-section">
           <div className="export-v2-section-heading">
             <span>Dimensions</span>
-            <button
-              type="button"
-              className={`export-v2-lock ${lockAspectRatio ? 'active' : ''}`}
-              onClick={onLockToggle}
-              title={lockAspectRatio ? 'Unlock aspect ratio' : 'Maintain aspect ratio'}
-              aria-label={lockAspectRatio ? 'Unlock aspect ratio' : 'Maintain aspect ratio'}
-            >
-              {lockAspectRatio ? <Lock size={13} /> : <Unlock size={13} />}
-              {lockAspectRatio ? 'Locked' : 'Free'}
-            </button>
+            <span className="export-v2-capability">Set in Resize</span>
           </div>
-
-          <div className="export-v2-dimensions">
-            <div>
-              <label htmlFor="output-width">Width</label>
-              <div className="export-v2-input-wrap"><input id="output-width" type="number" value={width ?? ''} onChange={(event) => onWidthChange(event.target.value)} min="1" disabled={isLoading} /><span>px</span></div>
-            </div>
-            <span className="export-v2-times">×</span>
-            <div>
-              <label htmlFor="output-height">Height</label>
-              <div className="export-v2-input-wrap"><input id="output-height" type="number" value={height ?? ''} onChange={(event) => onHeightChange(event.target.value)} min="1" disabled={isLoading} /><span>px</span></div>
-            </div>
+          <div className="export-v2-final-dimension">
+            <strong>{outputWidth && outputHeight ? `${outputWidth} × ${outputHeight} px` : '--'}</strong>
+            <span>Final output dimensions</span>
           </div>
-
           <div className="export-v2-dimension-summary">
             <span>Original</span><strong>{originalWidth} × {originalHeight}</strong>
             <span>Crop</span><strong>{cropWidth && cropHeight ? `${Math.round(cropWidth)} × ${Math.round(cropHeight)}` : '--'}</strong>
-            <span>Output</span><strong>{outputWidth && outputHeight ? `${outputWidth} × ${outputHeight}` : '--'}</strong>
           </div>
         </section>
 
@@ -267,7 +236,7 @@ export function ExportPanel({
             <div><span>Original</span><strong>{formatFileSize(fileSize)}</strong></div>
             <div><span>Estimated</span><strong>{formatFileSize(estimatedSize)}</strong></div>
             <div><span>Reduction</span><strong>{reduction === null ? '--' : reduction > 0 ? `${reduction}% smaller` : reduction < 0 ? `${Math.abs(reduction)}% larger` : 'Same size'}</strong></div>
-            <div><span>Dimensions</span><strong>{outputWidth && outputHeight ? `${outputWidth} × ${outputHeight}` : '--'}</strong></div>
+            <div><span>Format</span><strong>{activeFormat?.label ?? format.toUpperCase()}</strong></div>
           </div>
         </section>
       </div>

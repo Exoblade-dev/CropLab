@@ -1,4 +1,4 @@
-import { Crop, FlipHorizontal, History, MoreHorizontal, RotateCw, RotateCcw, Trash2, Undo2, Redo2, X, ZoomIn, ZoomOut, FileInput, RotateCcw as ResetIcon } from 'lucide-react';
+import { Crop, FlipHorizontal, History, MoreHorizontal, RotateCw, RotateCcw, Trash2, Undo2, Redo2, X, ZoomIn, ZoomOut, FileInput, RotateCcw as ResetIcon, StretchHorizontal, Lock, Unlock } from 'lucide-react';
 import { ASPECT_RATIOS } from '@/lib/image/constants';
 import type { EditorTool } from '@/components/EditorSidebar';
 
@@ -13,6 +13,13 @@ type Props = {
   onPanelChange: (panel: Panel) => void;
   onAspectChange: (value: number | null, label: string) => void;
   onCropReset: () => void;
+  outputWidth: number | null;
+  outputHeight: number | null;
+  lockAspectRatio: boolean;
+  isLoading: boolean;
+  onWidthChange: (value: string) => void;
+  onHeightChange: (value: string) => void;
+  onLockToggle: () => void;
   onRotateLeft: () => void;
   onRotateRight: () => void;
   onFlipHorizontal: () => void;
@@ -35,6 +42,13 @@ export function MobileEditorControls({
   onPanelChange,
   onAspectChange,
   onCropReset,
+  outputWidth,
+  outputHeight,
+  lockAspectRatio,
+  isLoading,
+  onWidthChange,
+  onHeightChange,
+  onLockToggle,
   onRotateLeft,
   onRotateRight,
   onFlipHorizontal,
@@ -54,7 +68,7 @@ export function MobileEditorControls({
       {panel && panel !== 'export' && (
         <section className="mobile-control-sheet" aria-label="Mobile editor controls">
           <div className="mobile-sheet-header">
-            <strong>{panel === 'crop' ? 'Crop' : 'More controls'}</strong>
+            <strong>{panel === 'crop' ? 'Crop' : panel === 'resize' ? 'Resize' : 'More controls'}</strong>
             <button className="mobile-icon-button" onClick={closePanel} aria-label="Close controls"><X size={18} /></button>
           </div>
 
@@ -75,6 +89,26 @@ export function MobileEditorControls({
                 ))}
               </div>
               <button className="mobile-secondary-button" onClick={onCropReset}><ResetIcon size={15} /> Reset crop</button>
+            </div>
+          )}
+
+          {panel === 'resize' && (
+            <div className="mobile-resize-controls">
+              <p>Set the exact pixel dimensions for the exported image.</p>
+              <div className="mobile-resize-dimensions">
+                <div>
+                  <label htmlFor="mobile-resize-width">Width</label>
+                  <input id="mobile-resize-width" type="number" min="1" value={outputWidth ?? ''} onChange={(event) => onWidthChange(event.target.value)} disabled={isLoading} />
+                </div>
+                <span>×</span>
+                <div>
+                  <label htmlFor="mobile-resize-height">Height</label>
+                  <input id="mobile-resize-height" type="number" min="1" value={outputHeight ?? ''} onChange={(event) => onHeightChange(event.target.value)} disabled={isLoading} />
+                </div>
+              </div>
+              <button type="button" className={`mobile-resize-lock ${lockAspectRatio ? 'active' : ''}`} onClick={onLockToggle} disabled={isLoading} aria-pressed={lockAspectRatio}>
+                {lockAspectRatio ? <Lock size={14} /> : <Unlock size={14} />} Maintain aspect ratio
+              </button>
             </div>
           )}
 
@@ -124,8 +158,9 @@ export function MobileEditorControls({
         <button className={`mobile-quick-value ${Math.abs(zoom - 1) < 0.01 ? 'active' : ''}`} onClick={() => onZoomPreset(1)} aria-label="Zoom to 100 percent" title="100 percent">100%</button>
       </div>
 
-      <nav className="mobile-bottom-bar" aria-label="Mobile editor controls" style={{ gridTemplateColumns: 'repeat(3, minmax(0, 1fr))' }}>
+      <nav className="mobile-bottom-bar" aria-label="Mobile editor controls" style={{ gridTemplateColumns: 'repeat(4, minmax(0, 1fr))' }}>
         <button className={panel === 'crop' ? 'active' : ''} onClick={() => onPanelChange(panel === 'crop' ? null : 'crop')} aria-pressed={panel === 'crop'}><Crop size={18} /><span>Crop</span></button>
+        <button className={panel === 'resize' ? 'active' : ''} onClick={() => onPanelChange(panel === 'resize' ? null : 'resize')} aria-pressed={panel === 'resize'}><StretchHorizontal size={18} /><span>Resize</span></button>
         <button className={panel === 'more' ? 'active' : ''} onClick={() => onPanelChange(panel === 'more' ? null : 'more')} aria-pressed={panel === 'more'}><MoreHorizontal size={18} /><span>More</span></button>
         <button className={panel === 'export' ? 'active' : ''} onClick={() => onPanelChange(panel === 'export' ? null : 'export')} aria-pressed={panel === 'export'}><span className="mobile-export-icon">↓</span><span>Export</span></button>
       </nav>

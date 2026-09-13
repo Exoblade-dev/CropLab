@@ -140,6 +140,7 @@ describe('v1.7 history timeline', () => {
       transform: { rotation: 0, flipX: false, flipY: false },
     },
     cropArea: null,
+    freeCropRect: null,
     selectedAspect: null,
     width: null,
     height: null,

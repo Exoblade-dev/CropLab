@@ -4,10 +4,12 @@ import type { InputImageFormat } from '@/lib/image/validation';
 export type ImageFormat = 'png' | 'jpeg' | 'webp';
 export type TransformState = { rotation: number; flipX: boolean; flipY: boolean };
 export type CropState = { crop: Point; zoom: number; transform: TransformState };
+export type FreeformCropRect = { x: number; y: number; width: number; height: number };
 export type AspectRatio = { label: string; value: number | null };
 export type EditorSnapshot = {
   cropState: CropState;
   cropArea: Area | null;
+  freeCropRect: FreeformCropRect | null;
   selectedAspect: number | null;
   width: number | null;
   height: number | null;

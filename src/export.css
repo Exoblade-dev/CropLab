@@ -342,6 +342,30 @@
   pointer-events: none;
 }
 
+.export-v2-dimensions-summary-section {
+  padding-top: 13px;
+}
+
+.export-v2-final-dimension {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px 0 11px;
+}
+
+.export-v2-final-dimension strong {
+  color: var(--text);
+  font-size: 16px;
+  font-weight: 650;
+  letter-spacing: -.02em;
+  font-variant-numeric: tabular-nums;
+}
+
+.export-v2-final-dimension span {
+  color: var(--muted);
+  font-size: 8px;
+}
+
 .export-v2-dimension-summary {
   display: grid;
   grid-template-columns: auto 1fr;

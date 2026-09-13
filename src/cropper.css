@@ -19,3 +19,108 @@
     width: 100%;
   }
 }
+
+.freeform-cropper {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  touch-action: none;
+  user-select: none;
+  background: transparent;
+}
+
+.freeform-cropper-image {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  max-width: none;
+  max-height: none;
+  pointer-events: none;
+  user-select: none;
+  transform-origin: center center;
+}
+
+.freeform-crop-box {
+  position: absolute;
+  z-index: 3;
+  border: 1px solid #fff;
+  box-shadow: 0 0 0 9999px rgba(0, 0, 0, .38);
+  cursor: move;
+  touch-action: none;
+}
+
+.freeform-crop-grid {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.freeform-grid-line {
+  position: absolute;
+  display: block;
+  background: rgba(255, 255, 255, .42);
+  pointer-events: none;
+}
+
+.freeform-grid-line.vertical {
+  top: 0;
+  bottom: 0;
+  width: 1px;
+}
+
+.freeform-grid-line.vertical.one { left: 33.333%; }
+.freeform-grid-line.vertical.two { left: 66.666%; }
+
+.freeform-grid-line.horizontal {
+  left: 0;
+  right: 0;
+  height: 1px;
+}
+
+.freeform-grid-line.horizontal.one { top: 33.333%; }
+.freeform-grid-line.horizontal.two { top: 66.666%; }
+
+.freeform-crop-handle {
+  position: absolute;
+  z-index: 4;
+  width: 14px;
+  height: 14px;
+  margin: 0;
+  padding: 0;
+  border: 2px solid #fff;
+  border-radius: 2px;
+  background: transparent;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, .35);
+  appearance: none;
+  touch-action: none;
+}
+
+.freeform-crop-handle.handle-nw { left: -7px; top: -7px; }
+.freeform-crop-handle.handle-n  { left: calc(50% - 7px); top: -7px; }
+.freeform-crop-handle.handle-ne { right: -7px; top: -7px; }
+.freeform-crop-handle.handle-w  { left: -7px; top: calc(50% - 7px); }
+.freeform-crop-handle.handle-e  { right: -7px; top: calc(50% - 7px); }
+.freeform-crop-handle.handle-sw { left: -7px; bottom: -7px; }
+.freeform-crop-handle.handle-s  { left: calc(50% - 7px); bottom: -7px; }
+.freeform-crop-handle.handle-se { right: -7px; bottom: -7px; }
+
+.freeform-crop-handle:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: 2px;
+}
+
+@media (max-width: 640px) {
+  .freeform-crop-handle {
+    width: 22px;
+    height: 22px;
+  }
+
+  .freeform-crop-handle.handle-nw { left: -11px; top: -11px; }
+  .freeform-crop-handle.handle-n  { left: calc(50% - 11px); top: -11px; }
+  .freeform-crop-handle.handle-ne { right: -11px; top: -11px; }
+  .freeform-crop-handle.handle-w  { left: -11px; top: calc(50% - 11px); }
+  .freeform-crop-handle.handle-e  { right: -11px; top: calc(50% - 11px); }
+  .freeform-crop-handle.handle-sw { left: -11px; bottom: -11px; }
+  .freeform-crop-handle.handle-s  { left: calc(50% - 11px); bottom: -11px; }
+  .freeform-crop-handle.handle-se { right: -11px; bottom: -11px; }
+}

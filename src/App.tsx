@@ -10,6 +10,7 @@ import { EditorToolbar } from '@/components/EditorToolbar';
 import { ExportPanel } from '@/components/ExportPanel';
 import { HistoryPanel } from '@/components/HistoryPanel';
 import { MobileEditorControls } from '@/components/MobileEditorControls';
+import { FreeformCropper } from '@/components/FreeformCropper';
 import { ShortcutGuide } from '@/components/ShortcutGuide';
 import { Toast } from '@/components/Toast';
 import { UploadScreen } from '@/components/UploadScreen';
@@ -23,6 +24,7 @@ import { DEFAULT_CROP_STATE } from '@/lib/image/constants';
 import { createExportCanvas, encodeCanvas, getFileExtension, getOutputDimensions } from '@/lib/image/export';
 import { getCropperTransform } from '@/lib/image/transform';
 import { scaleCropAreaToSource } from '@/lib/image/preview';
+import type { FreeformCropRect } from '@/lib/editor/freeform';
 import { clampZoom, DEFAULT_ZOOM, deriveDimension, MAX_ZOOM, MIN_ZOOM, normalizeRotation, rotateBy } from '@/lib/editor/interaction';
 import type { CropState, EditorSnapshot, ExportSettings, ExportStatus, ImageFormat } from '@/types/editor';
 
@@ -39,6 +41,7 @@ type ConfirmationRequest = {
 const DEFAULT_EDITOR_SNAPSHOT: EditorSnapshot = {
   cropState: DEFAULT_CROP_STATE,
   cropArea: null,
+  freeCropRect: null,
   selectedAspect: null,
   width: null,
   height: null,
@@ -60,6 +63,7 @@ export function App() {
   const [isLoading, setIsLoading] = useState(false);
   const [cropState, setCropState] = useState<CropState>(DEFAULT_CROP_STATE);
   const [croppedAreaPixels, setCroppedAreaPixels] = useState<Area | null>(null);
+  const [freeCropRect, setFreeCropRect] = useState<FreeformCropRect | null>(null);
   const [selectedAspect, setSelectedAspect] = useState<number | null>(null);
   const [exportFormat, setExportFormat] = useState<ImageFormat>('png');
   const [exportQuality, setExportQuality] = useState(0.9);
@@ -95,8 +99,9 @@ export function App() {
     quality: exportQuality,
     backgroundColor,
     cropArea: croppedAreaPixels,
+    freeCropRect,
     lockAspectRatio,
-  }), [backgroundColor, cropState, croppedAreaPixels, customHeight, customWidth, exportFormat, exportQuality, lockAspectRatio, selectedAspect]);
+  }), [backgroundColor, cropState, croppedAreaPixels, customHeight, customWidth, exportFormat, exportQuality, freeCropRect, lockAspectRatio, selectedAspect]);
 
   const applySnapshot = useCallback((snapshot: EditorSnapshot) => {
     setCropState(snapshot.cropState);
@@ -108,6 +113,7 @@ export function App() {
     setBackgroundColor(snapshot.backgroundColor);
     setLockAspectRatio(snapshot.lockAspectRatio);
     setCroppedAreaPixels(snapshot.cropArea);
+    setFreeCropRect(snapshot.freeCropRect ?? null);
   }, []);
 
   const flushPendingResize = useCallback(() => {
@@ -134,6 +140,7 @@ export function App() {
     flushPendingResize();
     setCropState(DEFAULT_CROP_STATE);
     setCroppedAreaPixels(null);
+    setFreeCropRect(null);
     setSelectedAspect(null);
     setCustomWidth(null);
     setCustomHeight(null);
@@ -223,19 +230,21 @@ export function App() {
   const resetCrop = useCallback(() => {
     flushPendingResize();
     const nextCropState = { ...cropState, crop: DEFAULT_CROP_STATE.crop, zoom: DEFAULT_ZOOM };
-    const nextSnapshot = { ...currentSnapshot, cropState: nextCropState, selectedAspect: null, cropArea: null };
+    const nextSnapshot = { ...currentSnapshot, cropState: nextCropState, selectedAspect: null, cropArea: null, freeCropRect: null };
     recordHistory(nextSnapshot, 'Crop reset');
     setCropState(nextCropState);
     setSelectedAspect(null);
     setCroppedAreaPixels(null);
+    setFreeCropRect(null);
     showToast('Crop reset');
   }, [cropState, currentSnapshot, flushPendingResize, recordHistory, showToast]);
 
   const handleAspectChange = useCallback((value: number | null, label: string) => {
     flushPendingResize();
-    recordHistory({ ...currentSnapshot, selectedAspect: value, cropArea: null }, `Crop · ${label}`);
+    recordHistory({ ...currentSnapshot, selectedAspect: value, cropArea: null, freeCropRect: null }, `Crop · ${label}`);
     setSelectedAspect(value);
     setCroppedAreaPixels(null);
+    setFreeCropRect(null);
     showToast(`Aspect ratio set to ${label}`);
   }, [currentSnapshot, flushPendingResize, recordHistory, showToast]);
 
@@ -358,6 +367,11 @@ export function App() {
     settings: exportSettings,
   });
 
+  const handleFreeformCropChange = useCallback((rect: FreeformCropRect, area: Area) => {
+    setFreeCropRect(rect);
+    setCroppedAreaPixels(area);
+  }, []);
+
   const handleFormatChange = useCallback((format: ImageFormat) => {
     flushPendingResize();
     const nextQuality = format === 'png' ? 0.9 : exportQuality;
@@ -446,12 +460,67 @@ export function App() {
         <input id="replace-image-input" type="file" accept="image/jpeg,image/png,image/webp,image/gif" hidden onChange={(event) => { const file = event.target.files?.[0]; if (file) void loadAndReset(file); event.currentTarget.value = ''; }} />
         <div className="workspace-shell">
           <div className={`workspace-grid ${mobilePanel === 'export' ? 'mobile-export-open' : ''}`}>
-            <EditorSidebar activeTool={activeTool} selectedAspect={selectedAspect} cropWidth={croppedAreaPixels?.width ?? null} cropHeight={croppedAreaPixels?.height ?? null} onToolChange={setActiveTool} onAspectChange={handleAspectChange} onCropReset={resetCrop} />
+            <EditorSidebar
+              activeTool={activeTool}
+              selectedAspect={selectedAspect}
+              cropWidth={croppedAreaPixels?.width ?? null}
+              cropHeight={croppedAreaPixels?.height ?? null}
+              outputWidth={outputDimensions?.width ?? null}
+              outputHeight={outputDimensions?.height ?? null}
+              lockAspectRatio={lockAspectRatio}
+              isLoading={isLoading}
+              onToolChange={setActiveTool}
+              onAspectChange={handleAspectChange}
+              onCropReset={resetCrop}
+              onWidthChange={(value) => handleDimension('width', value)}
+              onHeightChange={(value) => handleDimension('height', value)}
+              onLockToggle={handleLockToggle}
+              previewUrl={preview.url}
+              previewStatus={preview.status}
+              previewSize={preview.size}
+              format={exportFormat}
+              quality={exportQuality}
+              backgroundColor={backgroundColor}
+            />
             <section className="canvas-workspace" aria-label="Image canvas">
-              <div className="canvas-header"><div><span className="eyebrow">Canvas</span><strong>{loadedImage.element.naturalWidth} × {loadedImage.element.naturalHeight}</strong></div><span>Drag to reposition · scroll to zoom · pinch on touch</span></div>
+              <div className="canvas-header"><div><span className="eyebrow">Canvas</span><strong>{loadedImage.element.naturalWidth} × {loadedImage.element.naturalHeight}</strong></div><span>{selectedAspect === null ? 'Drag crop box · resize handles · zoom and rotate above' : 'Drag to reposition · scroll to zoom · pinch on touch'}</span></div>
               <EditorToolbar canUndo={canUndo} canRedo={canRedo} isHistoryOpen={isHistoryOpen} onHistory={() => setIsHistoryOpen(true)} zoom={cropState.zoom} rotation={cropState.transform.rotation} onReplace={replaceImage} onClear={clearImage} onUndo={performUndo} onRedo={performRedo} onRotateLeft={() => rotate(-90)} onRotateRight={() => rotate(90)} onFlipHorizontal={() => flip('x')} onFlipVertical={() => flip('y')} onReset={resetEdits} onZoomChange={handleZoom} onZoomPreset={commitZoomPreset} onRotationChange={handleRotation} onRotationCommit={endInteraction} onRotationInteractionStart={beginRotationInteraction} />
               <div className="canvas-stage">
-                <Cropper image={loadedImage.src} crop={cropState.crop} zoom={cropState.zoom} minZoom={MIN_ZOOM} maxZoom={MAX_ZOOM} zoomWithScroll aspect={selectedAspect ?? 0} onCropChange={(crop: Point) => setCropState((prev) => ({ ...prev, crop }))} onZoomChange={handleZoom} rotation={cropState.transform.rotation} onRotationChange={handleRotation} onCropComplete={(_area, pixels) => setCroppedAreaPixels(scaleCropAreaToSource(pixels, loadedImage.previewScaleX, loadedImage.previewScaleY))} onInteractionStart={beginCropInteraction} onInteractionEnd={endInteraction} keyboardStep={5} showGrid transform={cropperTransform} />
+                {selectedAspect === null ? (
+                  <FreeformCropper
+                    image={loadedImage.src}
+                    previewWidth={loadedImage.previewWidth}
+                    previewHeight={loadedImage.previewHeight}
+                    previewScaleX={loadedImage.previewScaleX}
+                    previewScaleY={loadedImage.previewScaleY}
+                    zoom={cropState.zoom}
+                    transform={cropState.transform}
+                    cropRect={freeCropRect}
+                    onCropRectChange={handleFreeformCropChange}
+                    onInteractionStart={beginCropInteraction}
+                    onInteractionEnd={endInteraction}
+                  />
+                ) : (
+                  <Cropper
+                    image={loadedImage.src}
+                    crop={cropState.crop}
+                    zoom={cropState.zoom}
+                    minZoom={MIN_ZOOM}
+                    maxZoom={MAX_ZOOM}
+                    zoomWithScroll
+                    aspect={selectedAspect}
+                    onCropChange={(crop: Point) => setCropState((prev) => ({ ...prev, crop }))}
+                    onZoomChange={handleZoom}
+                    rotation={cropState.transform.rotation}
+                    onRotationChange={handleRotation}
+                    onCropComplete={(_area, pixels) => setCroppedAreaPixels(scaleCropAreaToSource(pixels, loadedImage.previewScaleX, loadedImage.previewScaleY))}
+                    onInteractionStart={beginCropInteraction}
+                    onInteractionEnd={endInteraction}
+                    keyboardStep={5}
+                    showGrid
+                    transform={cropperTransform}
+                  />
+                )}
               </div>
               <div className="canvas-footer"><span>Persistent transforms stay available above the canvas.</span><span>{loadedImage.format === 'gif' ? 'GIF edits use the first frame and export as a static image.' : 'Edits stay in this browser.'}</span></div>
             </section>
@@ -467,9 +536,6 @@ export function App() {
                 outputHeight={outputDimensions?.height ?? null}
                 format={exportFormat}
                 quality={exportQuality}
-                width={customWidth}
-                height={customHeight}
-                lockAspectRatio={lockAspectRatio}
                 backgroundColor={backgroundColor}
                 estimatedSize={preview.size}
                 exportStatus={visibleExportStatus}
@@ -479,9 +545,6 @@ export function App() {
                 onQualityChange={handleQualityChange}
                 onQualityInteractionStart={handleQualityInteractionStart}
                 onQualityCommit={handleQualityCommit}
-                onWidthChange={(value) => handleDimension('width', value)}
-                onHeightChange={(value) => handleDimension('height', value)}
-                onLockToggle={handleLockToggle}
                 onBackgroundChange={handleBackgroundChange}
                 onDownload={() => void handleDownload()}
               />
@@ -496,6 +559,13 @@ export function App() {
             onPanelChange={setMobilePanel}
             onAspectChange={handleAspectChange}
             onCropReset={resetCrop}
+            outputWidth={outputDimensions?.width ?? null}
+            outputHeight={outputDimensions?.height ?? null}
+            lockAspectRatio={lockAspectRatio}
+            isLoading={isLoading}
+            onWidthChange={(value) => handleDimension('width', value)}
+            onHeightChange={(value) => handleDimension('height', value)}
+            onLockToggle={handleLockToggle}
             onRotateLeft={() => rotate(-90)}
             onRotateRight={() => rotate(90)}
             onFlipHorizontal={() => flip('x')}
