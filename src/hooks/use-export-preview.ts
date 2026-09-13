@@ -15,10 +15,9 @@ type Preview = {
   size: number | null;
   status: ExportStatus;
   error: string | null;
-  url: string | null;
 };
 
-const PREVIEW_DEBOUNCE_MS = 350;
+const PREVIEW_DEBOUNCE_MS = 1000;
 
 export function useExportPreview({ image, crop, transform, settings }: Params) {
   const previewKey = image && crop
@@ -36,21 +35,15 @@ export function useExportPreview({ image, crop, transform, settings }: Params) {
     size: null,
     status: 'idle',
     error: null,
-    url: null,
   });
   const activeKeyRef = useRef('');
   const blobRef = useRef<Blob | null>(null);
   const encodingKeyRef = useRef('');
   const encodingPromiseRef = useRef<Promise<Blob> | null>(null);
-  const previewUrlRef = useRef<string | null>(null);
 
   useEffect(() => {
     activeKeyRef.current = previewKey;
     blobRef.current = null;
-    if (previewUrlRef.current) {
-      URL.revokeObjectURL(previewUrlRef.current);
-      previewUrlRef.current = null;
-    }
     encodingKeyRef.current = '';
     encodingPromiseRef.current = null;
 
@@ -79,9 +72,7 @@ export function useExportPreview({ image, crop, transform, settings }: Params) {
 
         if (!cancelled && activeKeyRef.current === previewKey) {
           blobRef.current = blob;
-          const url = URL.createObjectURL(blob);
-          previewUrlRef.current = url;
-          setPreview({ key: previewKey, size: blob.size, status: 'complete', error: null, url });
+          setPreview({ key: previewKey, size: blob.size, status: 'complete', error: null });
         }
       } catch (error) {
         if (!cancelled && activeKeyRef.current === previewKey) {
@@ -90,7 +81,6 @@ export function useExportPreview({ image, crop, transform, settings }: Params) {
             size: null,
             status: 'error',
             error: error instanceof Error ? error.message : 'Unable to estimate output size',
-            url: null,
           });
         }
       } finally {
@@ -107,16 +97,12 @@ export function useExportPreview({ image, crop, transform, settings }: Params) {
     };
   }, [crop, image, previewKey, settings, transform]);
 
-  useEffect(() => () => {
-    if (previewUrlRef.current) URL.revokeObjectURL(previewUrlRef.current);
-  }, []);
-
   const getBlob = useCallback((): Blob | null => {
     if (!previewKey || activeKeyRef.current !== previewKey) return null;
     return blobRef.current;
   }, [previewKey]);
 
-  if (!image || !crop) return { key: '', size: null, status: 'idle' as ExportStatus, error: null, url: null, getBlob };
-  if (preview.key !== previewKey) return { key: previewKey, size: null, status: 'preparing' as ExportStatus, error: null, url: null, getBlob };
+  if (!image || !crop) return { key: '', size: null, status: 'idle' as ExportStatus, error: null, getBlob };
+  if (preview.key !== previewKey) return { key: previewKey, size: null, status: 'preparing' as ExportStatus, error: null, getBlob };
   return { ...preview, getBlob };
 }

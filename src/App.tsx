@@ -475,12 +475,6 @@ export function App() {
               onWidthChange={(value) => handleDimension('width', value)}
               onHeightChange={(value) => handleDimension('height', value)}
               onLockToggle={handleLockToggle}
-              previewUrl={preview.url}
-              previewStatus={preview.status}
-              previewSize={preview.size}
-              format={exportFormat}
-              quality={exportQuality}
-              backgroundColor={backgroundColor}
             />
             <section className="canvas-workspace" aria-label="Image canvas">
               <div className="canvas-header"><div><span className="eyebrow">Canvas</span><strong>{loadedImage.element.naturalWidth} × {loadedImage.element.naturalHeight}</strong></div><span>{selectedAspect === null ? 'Drag crop box · resize handles · zoom and rotate above' : 'Drag to reposition · scroll to zoom · pinch on touch'}</span></div>

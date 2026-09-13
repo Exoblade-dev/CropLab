@@ -1,6 +1,4 @@
-import { ArrowRight, Crop, Lock, RotateCcw, StretchHorizontal, Unlock } from 'lucide-react';
-import { ExportPreview } from '@/components/ExportPreview';
-import type { ExportStatus, ImageFormat } from '@/types/editor';
+import { Crop, Lock, RotateCcw, SlidersHorizontal, Sparkles, StretchHorizontal, Unlock } from 'lucide-react';
 import { ASPECT_RATIOS } from '@/lib/image/constants';
 
 export type EditorTool = 'crop' | 'resize';
@@ -19,12 +17,6 @@ type Props = {
   onWidthChange: (value: string) => void;
   onHeightChange: (value: string) => void;
   onLockToggle: () => void;
-  previewUrl: string | null;
-  previewStatus: ExportStatus;
-  previewSize: number | null;
-  format: ImageFormat;
-  quality: number;
-  backgroundColor: string;
 };
 
 const tools: { id: EditorTool; label: string; description: string; icon: typeof Crop }[] = [
@@ -33,15 +25,15 @@ const tools: { id: EditorTool; label: string; description: string; icon: typeof 
 ];
 
 const comingSoonTools = [
-  'Compress',
-  'Adjust',
-  'Presets',
-  'Background Removal',
-  'OCR / Image to Text',
-  'Batch Processing',
+  { label: 'Compress', description: 'Reduce file weight', icon: Sparkles },
+  { label: 'Adjust', description: 'Tune image appearance', icon: SlidersHorizontal },
+  { label: 'Presets', description: 'Ready-made dimensions', icon: StretchHorizontal },
+  { label: 'Background Removal', description: 'Remove image backgrounds', icon: Crop },
+  { label: 'OCR / Image to Text', description: 'Extract text from images', icon: SlidersHorizontal },
+  { label: 'Batch Processing', description: 'Edit multiple images at once', icon: Sparkles },
 ] as const;
 
-export function EditorSidebar({ activeTool, selectedAspect, cropWidth, cropHeight, outputWidth, outputHeight, lockAspectRatio, isLoading, onToolChange, onAspectChange, onCropReset, onWidthChange, onHeightChange, onLockToggle, previewUrl, previewStatus, previewSize, format, quality, backgroundColor }: Props) {
+export function EditorSidebar({ activeTool, selectedAspect, cropWidth, cropHeight, outputWidth, outputHeight, lockAspectRatio, isLoading, onToolChange, onAspectChange, onCropReset, onWidthChange, onHeightChange, onLockToggle }: Props) {
   return (
     <aside className="tools-panel" aria-label="Primary editing tools">
       <div className="panel-label">Edit</div>
@@ -53,6 +45,18 @@ export function EditorSidebar({ activeTool, selectedAspect, cropWidth, cropHeigh
           </button>
         ))}
       </nav>
+      <div className="tool-coming-soon">
+        <div className="tool-coming-soon-label">Coming soon</div>
+        <div className="tool-coming-soon-list">
+          {comingSoonTools.map(({ label, description, icon: Icon }) => (
+            <div key={label} className="tool-item tool-item-coming" aria-label={`${label}, coming soon`}>
+              <span className="tool-icon"><Icon size={17} /></span>
+              <span><strong>{label}</strong><small>{description}</small></span>
+              <span className="tool-coming-badge">Soon</span>
+            </div>
+          ))}
+        </div>
+      </div>
       <div className="tool-detail">
         {activeTool === 'crop' && (
           <div className="tool-detail-section">
@@ -95,35 +99,6 @@ export function EditorSidebar({ activeTool, selectedAspect, cropWidth, cropHeigh
             </div>
           </div>
         )}
-      </div>
-      <div className="tool-workflow" aria-label="Editing workflow">
-        <ExportPreview
-          previewUrl={previewUrl}
-          previewStatus={previewStatus}
-          previewSize={previewSize}
-          outputWidth={outputWidth}
-          outputHeight={outputHeight}
-          format={format}
-          quality={quality}
-          backgroundColor={backgroundColor}
-          disabled={isLoading}
-        />
-        <div className="tool-workflow-heading">
-          <span className="tool-workflow-kicker">Workflow</span>
-          <span className="tool-workflow-step">{activeTool === 'crop' ? '1 of 3' : '2 of 3'}</span>
-        </div>
-        <div className="tool-workflow-path" aria-label="Crop, Resize, Export workflow">
-          <span className={activeTool === 'crop' ? 'current' : 'complete'}>Crop</span>
-          <ArrowRight size={11} aria-hidden="true" />
-          <span className={activeTool === 'resize' ? 'current' : ''}>Resize</span>
-          <ArrowRight size={11} aria-hidden="true" />
-          <span>Export</span>
-        </div>
-        <p>{activeTool === 'crop' ? 'Frame the image first, then set the final pixel dimensions in Resize.' : 'Set the final pixel dimensions here, then choose format and quality in Export.'}</p>
-        <div className="tool-coming-soon" aria-label="Additional tools coming soon">
-          <span className="tool-coming-soon-label">More tools</span>
-          <span className="tool-coming-soon-count">{comingSoonTools.length} coming soon</span>
-        </div>
       </div>
     </aside>
   );
