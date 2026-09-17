@@ -1,255 +1,101 @@
-import { Download } from 'lucide-react';
+import { useEffect, useRef } from 'react';
+import { Check, Download, FileImage, Info, X } from 'lucide-react';
 import { formatFileSize, getSizeReductionPercent } from '@/lib/image/export';
 import type { ExportFormatDefinition } from '@/lib/image/formats';
 import type { ExportStatus, ImageFormat } from '@/types/editor';
 
 type Props = {
-  originalWidth: number;
-  originalHeight: number;
-  fileSize: number;
-  cropWidth: number | null;
-  cropHeight: number | null;
-  outputWidth: number | null;
-  outputHeight: number | null;
-  format: ImageFormat;
-  quality: number;
-  backgroundColor: string;
-  estimatedSize: number | null;
-  exportStatus: ExportStatus;
-  supportedFormats: readonly ExportFormatDefinition[];
-  isLoading: boolean;
-  onFormatChange: (format: ImageFormat) => void;
-  onQualityChange: (quality: number) => void;
-  onQualityInteractionStart: () => void;
-  onQualityCommit: () => void;
-  onBackgroundChange: (color: string) => void;
-  onDownload: () => void;
+  originalWidth: number; originalHeight: number; fileSize: number; cropWidth: number | null; cropHeight: number | null;
+  outputWidth: number | null; outputHeight: number | null; format: ImageFormat; quality: number; backgroundColor: string;
+  estimatedSize: number | null; exportStatus: ExportStatus; supportedFormats: readonly ExportFormatDefinition[]; isLoading: boolean;
+  onFormatChange: (format: ImageFormat) => void; onQualityChange: (quality: number) => void; onQualityInteractionStart: () => void;
+  onQualityCommit: () => void; onBackgroundChange: (color: string) => void; onDownload: () => void; open: boolean; onClose: () => void;
 };
 
-const STATUS_LABELS: Record<ExportStatus, string> = {
-  idle: 'Ready',
-  preparing: 'Preparing…',
-  cropping: 'Cropping…',
-  resizing: 'Resizing…',
-  encoding: 'Encoding…',
-  downloading: 'Downloading…',
-  complete: 'Complete',
-  error: 'Export failed',
-};
+const STATUS_LABELS: Record<ExportStatus, string> = { idle: 'Ready to export', preparing: 'Preparing…', cropping: 'Cropping…', resizing: 'Resizing…', encoding: 'Encoding…', downloading: 'Downloading…', complete: 'Export complete', error: 'Export failed' };
+const QUALITY_PRESETS = [{ label: 'Small', value: 0.35 }, { label: 'Balanced', value: 0.65 }, { label: 'High', value: 0.85 }, { label: 'Maximum', value: 1 }] as const;
 
-const QUALITY_PRESETS = [
-  { label: 'Small', value: 0.35 },
-  { label: 'Balanced', value: 0.65 },
-  { label: 'High Quality', value: 0.85 },
-  { label: 'Maximum', value: 1 },
-] as const;
+function getBackgroundMode(color: string): 'white' | 'black' | 'custom' { const normalized = color.toLowerCase(); if (normalized === '#ffffff') return 'white'; if (normalized === '#000000') return 'black'; return 'custom'; }
+function getFormatCapability(format: ImageFormat): string { if (format === 'png') return 'Lossless · transparency preserved'; if (format === 'webp') return 'Lossy · transparency preserved'; return 'Lossy · transparency composited'; }
 
-function getBackgroundMode(color: string): 'white' | 'black' | 'custom' {
-  const normalized = color.toLowerCase();
-  if (normalized === '#ffffff') return 'white';
-  if (normalized === '#000000') return 'black';
-  return 'custom';
-}
+export function ExportPanel({ originalWidth, originalHeight, fileSize, cropWidth, cropHeight, outputWidth, outputHeight, format, quality, backgroundColor, estimatedSize, exportStatus, supportedFormats, isLoading, onFormatChange, onQualityChange, onQualityInteractionStart, onQualityCommit, onBackgroundChange, onDownload, open, onClose }: Props) {
+  const closeButtonRef = useRef<HTMLButtonElement | null>(null);
 
-function getFormatCapability(format: ImageFormat): string {
-  if (format === 'png') return 'Lossless · Transparency preserved';
-  if (format === 'webp') return 'Lossy · Transparency preserved';
-  return 'Lossy · No transparency';
-}
+  useEffect(() => {
+    if (!open) return;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    closeButtonRef.current?.focus();
+    const handleKeyDown = (event: KeyboardEvent) => { if (event.key === 'Escape') onClose(); };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => { document.body.style.overflow = previousOverflow; window.removeEventListener('keydown', handleKeyDown); };
+  }, [onClose, open]);
 
-export function ExportPanel({
-  originalWidth,
-  originalHeight,
-  fileSize,
-  cropWidth,
-  cropHeight,
-  outputWidth,
-  outputHeight,
-  format,
-  quality,
-  backgroundColor,
-  estimatedSize,
-  exportStatus,
-  supportedFormats,
-  isLoading,
-  onFormatChange,
-  onQualityChange,
-  onQualityInteractionStart,
-  onQualityCommit,
-  onBackgroundChange,
-  onDownload,
-}: Props) {
+  if (!open) return null;
   const activeFormat = supportedFormats.find((item) => item.id === format);
   const reduction = estimatedSize === null ? null : getSizeReductionPercent(fileSize, estimatedSize);
-  const isEncoding = exportStatus === 'preparing' || exportStatus === 'cropping' || exportStatus === 'resizing' || exportStatus === 'encoding';
+  const isEncoding = ['preparing', 'cropping', 'resizing', 'encoding'].includes(exportStatus);
   const qualityPercent = Math.round(quality * 100);
   const backgroundMode = getBackgroundMode(backgroundColor);
   const currentPreset = QUALITY_PRESETS.find((preset) => Math.abs(preset.value - quality) < 0.005)?.label ?? 'Custom';
+  const canDownload = Boolean(cropWidth && cropHeight && outputWidth && outputHeight && !isLoading);
 
   return (
-    <aside className="export-panel export-panel-v2" aria-label="Export controls">
-      <div className="export-v2-header">
-        <div>
-          <div className="panel-label">Export</div>
-          <h2>Output</h2>
-        </div>
-        <span className="local-badge">Local</span>
-      </div>
+    <div className="export-overlay" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
+      <aside className="export-drawer" role="dialog" aria-modal="true" aria-labelledby="export-dialog-title">
+        <header className="export-drawer-header">
+          <div className="export-title-mark"><FileImage size={19} /></div>
+          <div><span className="export-kicker">Final step</span><h2 id="export-dialog-title">Export image</h2><p>Choose how the finished image should leave your device.</p></div>
+          <button ref={closeButtonRef} type="button" className="drawer-close" onClick={onClose} aria-label="Close export"><X size={18} /></button>
+        </header>
 
-      <div className="export-v2-scroll">
-        <section className="export-v2-section export-v2-output-section">
-          <div className="export-v2-section-heading">
-            <span>Output</span>
-            <span className="export-v2-capability">Browser encoded</span>
-          </div>
+        <div className="export-drawer-body">
+          <section className="export-hero-summary">
+            <div><span>Ready</span><strong>{outputWidth && outputHeight ? `${outputWidth} × ${outputHeight} px` : 'Set dimensions in Resize'}</strong></div>
+            <div><span>Source</span><strong>{originalWidth} × {originalHeight}</strong></div>
+          </section>
 
-          <label className="export-v2-field-label" htmlFor="format-select">Format</label>
-          <select
-            className="export-v2-select"
-            id="format-select"
-            value={format}
-            onChange={(event) => onFormatChange(event.target.value as ImageFormat)}
-            disabled={isLoading}
-          >
-            {supportedFormats.map((item) => (
-              <option key={item.id} value={item.id}>{item.label}</option>
-            ))}
-          </select>
-
-          <div className="export-v2-format-meta">
-            <strong>{activeFormat?.label ?? 'Selected format'}</strong>
-            <span>{getFormatCapability(format)}</span>
-          </div>
-        </section>
-
-        {activeFormat?.supportsQuality && (
-          <section className="export-v2-section">
-            <div className="export-v2-section-heading">
-              <span>Compression</span>
-              <strong>{qualityPercent}%</strong>
-            </div>
-
-            <div className="export-v2-quality-row">
-              <label className="export-v2-sr-only" htmlFor="quality-slider">Quality</label>
-              <input
-                className="export-v2-range"
-                type="range"
-                id="quality-slider"
-                min="0.2"
-                max="1"
-                step="0.01"
-                value={quality}
-                onChange={(event) => onQualityChange(Number(event.target.value))}
-                onPointerDown={onQualityInteractionStart}
-                onPointerUp={onQualityCommit}
-                onKeyUp={onQualityCommit}
-                disabled={isLoading}
-              />
-            </div>
-
-            <div className="export-v2-quality-scale" aria-hidden="true">
-              <span>20%</span>
-              <span>50%</span>
-              <span>100%</span>
-            </div>
-
-            <div className="export-v2-preset-row" aria-label="Quality presets">
-              {QUALITY_PRESETS.map((preset) => (
-                <button
-                  key={preset.label}
-                  type="button"
-                  className={`export-v2-preset ${Math.abs(preset.value - quality) < 0.005 ? 'active' : ''}`}
-                  onClick={() => onQualityChange(preset.value)}
-                  onPointerDown={onQualityInteractionStart}
-                  onPointerUp={onQualityCommit}
-                  disabled={isLoading}
-                >
-                  {preset.label}
+          <section className="export-card">
+            <div className="export-card-heading"><div><span className="export-section-kicker">01</span><h3>Format</h3></div><span className="export-card-note">Browser encoded</span></div>
+            <div className="format-choice-grid">
+              {supportedFormats.map((item) => (
+                <button key={item.id} type="button" className={`format-choice ${format === item.id ? 'active' : ''}`} onClick={() => onFormatChange(item.id)} disabled={isLoading} aria-pressed={format === item.id}>
+                  <span className="format-choice-icon">{item.label.slice(0, 3).toUpperCase()}</span><span><strong>{item.label}</strong><small>{item.id === 'png' ? 'Lossless' : 'Compressed'}</small></span>{format === item.id && <Check size={15} />}
                 </button>
               ))}
             </div>
-
-            <p className="export-v2-help">Quality changes encoder quality; it does not promise a matching percentage reduction in file size.</p>
-            <div className="export-v2-subtle-value">Current preset: {currentPreset}</div>
+            <p className="export-capability"><Info size={13} /> {getFormatCapability(format)}</p>
           </section>
-        )}
 
-        {format === 'png' && (
-          <section className="export-v2-section export-v2-static-section">
-            <div className="export-v2-section-heading"><span>Transparency</span><strong>Preserved</strong></div>
-            <p className="export-v2-help">Transparent pixels remain transparent in PNG output.</p>
+          {activeFormat?.supportsQuality && (
+            <section className="export-card">
+              <div className="export-card-heading"><div><span className="export-section-kicker">02</span><h3>Quality</h3></div><strong className="export-value">{qualityPercent}%</strong></div>
+              <input className="export-quality-slider" aria-label="Quality" type="range" min="0.1" max="1" step="0.05" value={quality} onChange={(event) => onQualityChange(Number(event.target.value))} onPointerDown={onQualityInteractionStart} onPointerUp={onQualityCommit} onKeyUp={onQualityCommit} disabled={isLoading} />
+              <div className="quality-scale"><span>Smaller file</span><span>Maximum detail</span></div>
+              <div className="quality-presets">{QUALITY_PRESETS.map((preset) => <button key={preset.label} type="button" className={currentPreset === preset.label ? 'active' : ''} onClick={() => onQualityChange(preset.value)} disabled={isLoading}>{preset.label}</button>)}</div>
+            </section>
+          )}
+
+          {activeFormat?.supportsBackground && (
+            <section className="export-card">
+              <div className="export-card-heading"><div><span className="export-section-kicker">03</span><h3>JPEG background</h3></div><span className="export-card-note">Transparency</span></div>
+              <p className="export-help">JPEG cannot store transparent pixels, so they are filled before encoding.</p>
+              <div className="background-choice-row"><button type="button" className={backgroundMode === 'white' ? 'active' : ''} onClick={() => onBackgroundChange('#ffffff')} disabled={isLoading}><span className="swatch white" /> White</button><button type="button" className={backgroundMode === 'black' ? 'active' : ''} onClick={() => onBackgroundChange('#000000')} disabled={isLoading}><span className="swatch black" /> Black</button><button type="button" className={backgroundMode === 'custom' ? 'active' : ''} onClick={() => onBackgroundChange(backgroundMode === 'custom' ? backgroundColor : '#ffffff')} disabled={isLoading}><span className="swatch custom" style={{ backgroundColor }} /> Custom</button></div>
+              {backgroundMode === 'custom' && <div className="custom-color-row"><input id="jpeg-background" type="color" value={backgroundColor} onChange={(event) => onBackgroundChange(event.target.value)} disabled={isLoading} aria-label="Custom JPEG background color" /><strong>{backgroundColor.toUpperCase()}</strong></div>}
+            </section>
+          )}
+
+          <section className="export-card export-summary-card">
+            <div className="export-card-heading"><div><span className="export-section-kicker">Summary</span><h3>What will be exported</h3></div></div>
+            <div className="export-facts"><div><span>Final size</span><strong>{outputWidth && outputHeight ? `${outputWidth} × ${outputHeight}` : '—'}</strong></div><div><span>Estimated file</span><strong>{formatFileSize(estimatedSize)}</strong></div><div><span>Original file</span><strong>{formatFileSize(fileSize)}</strong></div><div><span>Change</span><strong>{reduction === null ? '—' : reduction > 0 ? `${reduction}% smaller` : reduction < 0 ? `${Math.abs(reduction)}% larger` : 'Same size'}</strong></div></div>
           </section>
-        )}
-
-        {format === 'webp' && (
-          <section className="export-v2-section export-v2-static-section">
-            <div className="export-v2-section-heading"><span>Transparency</span><strong>Preserved</strong></div>
-            <p className="export-v2-help">Transparent pixels are preserved. Lossless WebP mode is not enabled by the current browser canvas encoder.</p>
-          </section>
-        )}
-
-        {activeFormat?.supportsBackground && (
-          <section className="export-v2-section">
-            <div className="export-v2-section-heading"><span>Background</span><span>JPEG</span></div>
-            <p className="export-v2-help">JPEG cannot store transparency. Transparent pixels are composited before encoding.</p>
-
-            <div className="export-v2-choice-row" role="radiogroup" aria-label="JPEG background">
-              <button type="button" className={`export-v2-choice ${backgroundMode === 'white' ? 'active' : ''}`} onClick={() => onBackgroundChange('#ffffff')} disabled={isLoading}>White</button>
-              <button type="button" className={`export-v2-choice ${backgroundMode === 'black' ? 'active' : ''}`} onClick={() => onBackgroundChange('#000000')} disabled={isLoading}>Black</button>
-              <button type="button" className={`export-v2-choice ${backgroundMode === 'custom' ? 'active' : ''}`} onClick={() => onBackgroundChange(backgroundMode === 'custom' ? backgroundColor : '#ffffff')} disabled={isLoading}>Custom</button>
-            </div>
-
-            {backgroundMode === 'custom' && (
-              <div className="export-v2-color-control">
-                <input
-                  id="jpeg-background"
-                  type="color"
-                  value={backgroundColor}
-                  onChange={(event) => onBackgroundChange(event.target.value)}
-                  disabled={isLoading}
-                  aria-label="Custom JPEG background color"
-                />
-                <span>{backgroundColor.toUpperCase()}</span>
-              </div>
-            )}
-          </section>
-        )}
-
-        <section className="export-v2-section export-v2-dimensions-summary-section">
-          <div className="export-v2-section-heading">
-            <span>Dimensions</span>
-            <span className="export-v2-capability">Set in Resize</span>
-          </div>
-          <div className="export-v2-final-dimension">
-            <strong>{outputWidth && outputHeight ? `${outputWidth} × ${outputHeight} px` : '--'}</strong>
-            <span>Final output dimensions</span>
-          </div>
-          <div className="export-v2-dimension-summary">
-            <span>Original</span><strong>{originalWidth} × {originalHeight}</strong>
-            <span>Crop</span><strong>{cropWidth && cropHeight ? `${Math.round(cropWidth)} × ${Math.round(cropHeight)}` : '--'}</strong>
-          </div>
-        </section>
-
-        <section className="export-v2-summary">
-          <div className="export-v2-section-heading"><span>Output summary</span><span>{activeFormat?.label ?? format.toUpperCase()}</span></div>
-          <div className="export-v2-summary-grid">
-            <div><span>Original</span><strong>{formatFileSize(fileSize)}</strong></div>
-            <div><span>Estimated</span><strong>{formatFileSize(estimatedSize)}</strong></div>
-            <div><span>Reduction</span><strong>{reduction === null ? '--' : reduction > 0 ? `${reduction}% smaller` : reduction < 0 ? `${Math.abs(reduction)}% larger` : 'Same size'}</strong></div>
-            <div><span>Format</span><strong>{activeFormat?.label ?? format.toUpperCase()}</strong></div>
-          </div>
-        </section>
-      </div>
-
-      <div className="export-v2-footer">
-        <div className={`export-v2-status export-v2-status-${exportStatus}`} role="status" aria-live="polite">
-          <span className="export-v2-status-dot" />
-          <span>{isEncoding && format === 'webp' && exportStatus === 'encoding' ? 'Encoding WebP…' : STATUS_LABELS[exportStatus]}</span>
         </div>
-        <button id="download-image-button" className="download-btn export-v2-download" onClick={onDownload} disabled={isLoading || !cropWidth || !cropHeight}>
-          {isLoading ? <span>{STATUS_LABELS[exportStatus]}</span> : <><Download size={17} /> Download {activeFormat?.label ?? 'image'}</>}
-        </button>
-      </div>
-    </aside>
+
+        <footer className="export-drawer-footer">
+          <div className={`export-status export-status-${exportStatus}`} role="status" aria-live="polite"><span className="export-status-dot" />{isEncoding && format === 'webp' && exportStatus === 'encoding' ? 'Encoding WebP…' : STATUS_LABELS[exportStatus]}</div>
+          <button id="download-image-button" type="button" className="primary-export-button" onClick={onDownload} disabled={!canDownload}>{isLoading ? STATUS_LABELS[exportStatus] : <><Download size={17} /> Download {activeFormat?.label ?? 'image'}</>}</button>
+        </footer>
+      </aside>
+    </div>
   );
 }

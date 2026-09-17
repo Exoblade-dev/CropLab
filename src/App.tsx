@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Cropper, { type Area, type Point } from 'react-easy-crop';
-import { X } from 'lucide-react';
+import { Download } from 'lucide-react';
 import { AppHeader } from '@/components/AppHeader';
 import { ConfirmationDialog } from '@/components/ConfirmationDialog';
 import { EditorSidebar, type EditorTool } from '@/components/EditorSidebar';
@@ -30,7 +30,7 @@ import type { CropState, EditorSnapshot, ExportSettings, ExportStatus, ImageForm
 
 const DEFAULT_BACKGROUND = '#ffffff';
 
-type MobilePanel = EditorTool | 'more' | 'export' | null;
+type MobilePanel = EditorTool | 'more' | null;
 type ConfirmationRequest = {
   title: string;
   message: string;
@@ -73,9 +73,11 @@ export function App() {
   const [backgroundColor, setBackgroundColor] = useState(DEFAULT_BACKGROUND);
   const [downloadStatus, setDownloadStatus] = useState<ExportStatus>('idle');
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
+  const [isExportOpen, setIsExportOpen] = useState(false);
   const [isShortcutGuideOpen, setIsShortcutGuideOpen] = useState(false);
   const [confirmation, setConfirmation] = useState<ConfirmationRequest | null>(null);
   const closeHistory = useCallback(() => setIsHistoryOpen(false), []);
+  const closeExport = useCallback(() => setIsExportOpen(false), []);
   const interactionStartRef = useRef<{ snapshot: EditorSnapshot; label: string } | null>(null);
   const resizeStartRef = useRef<EditorSnapshot | null>(null);
   const qualityStartRef = useRef<EditorSnapshot | null>(null);
@@ -338,7 +340,7 @@ export function App() {
     else document.getElementById('upload-image-input')?.click();
   }, [loadedImage, replaceImage]);
   const exportFromShortcut = useCallback(() => {
-    document.getElementById('download-image-button')?.click();
+    setIsExportOpen(true);
   }, []);
 
   const handleHistorySelect = useCallback((index: number) => {
@@ -349,7 +351,7 @@ export function App() {
     showToast(index === 0 ? 'Returned to original' : `Returned to: ${historyEntries[index].label}`);
   }, [applySnapshot, flushPendingResize, historyEntries, jumpTo, showToast]);
 
-  useKeyboardShortcuts({ onUndo: performUndo, onRedo: performRedo, onZoomIn: zoomIn, onZoomOut: zoomOut, onZoomReset: resetZoom, onZoomPreset: commitZoomPreset, onRotate: () => rotate(90), onOpen: openImage, onExport: exportFromShortcut, onEscape: () => { setActiveTool(null); setMobilePanel(null); } });
+  useKeyboardShortcuts({ onUndo: performUndo, onRedo: performRedo, onZoomIn: zoomIn, onZoomOut: zoomOut, onZoomReset: resetZoom, onZoomPreset: commitZoomPreset, onRotate: () => rotate(90), onOpen: openImage, onExport: exportFromShortcut, onEscape: () => { setActiveTool(null); setMobilePanel(null); setIsExportOpen(false); } });
 
   const exportSettings: ExportSettings = useMemo(() => ({
     format: exportFormat,
@@ -451,7 +453,7 @@ export function App() {
     <AppHeader
       theme={theme}
       onToggle={() => setTheme(theme === 'light' ? 'dark' : 'light')}
-      onExport={loadedImage ? () => setMobilePanel('export') : undefined}
+      onExport={loadedImage ? () => setIsExportOpen(true) : undefined}
       onHome={goHome}
       onShortcuts={() => setIsShortcutGuideOpen(true)}
     />
@@ -459,7 +461,7 @@ export function App() {
       {!loadedImage ? <UploadScreen onLoad={(file) => void loadAndReset(file)} /> : <>
         <input id="replace-image-input" type="file" accept="image/jpeg,image/png,image/webp,image/gif" hidden onChange={(event) => { const file = event.target.files?.[0]; if (file) void loadAndReset(file); event.currentTarget.value = ''; }} />
         <div className="workspace-shell">
-          <div className={`workspace-grid ${mobilePanel === 'export' ? 'mobile-export-open' : ''}`}>
+          <div className="workspace-grid">
             <EditorSidebar
               activeTool={activeTool}
               selectedAspect={selectedAspect}
@@ -483,7 +485,7 @@ export function App() {
               backgroundColor={backgroundColor}
             />
             <section className="canvas-workspace" aria-label="Image canvas">
-              <div className="canvas-header"><div><span className="eyebrow">Canvas</span><strong>{loadedImage.element.naturalWidth} × {loadedImage.element.naturalHeight}</strong></div><span>{selectedAspect === null ? 'Drag crop box · resize handles · zoom and rotate above' : 'Drag to reposition · scroll to zoom · pinch on touch'}</span></div>
+              <div className="canvas-header"><div><span className="eyebrow">Canvas</span><strong>{loadedImage.element.naturalWidth} × {loadedImage.element.naturalHeight}</strong></div><div className="canvas-header-actions"><span>{selectedAspect === null ? 'Drag crop box · resize handles · zoom and rotate above' : 'Drag to reposition · scroll to zoom · pinch on touch'}</span><button type="button" className="canvas-export-button" onClick={() => setIsExportOpen(true)} disabled={isLoading}><Download size={14} /> Export</button></div></div>
               <EditorToolbar canUndo={canUndo} canRedo={canRedo} isHistoryOpen={isHistoryOpen} onHistory={() => setIsHistoryOpen(true)} zoom={cropState.zoom} rotation={cropState.transform.rotation} onReplace={replaceImage} onClear={clearImage} onUndo={performUndo} onRedo={performRedo} onRotateLeft={() => rotate(-90)} onRotateRight={() => rotate(90)} onFlipHorizontal={() => flip('x')} onFlipVertical={() => flip('y')} onReset={resetEdits} onZoomChange={handleZoom} onZoomPreset={commitZoomPreset} onRotationChange={handleRotation} onRotationCommit={endInteraction} onRotationInteractionStart={beginRotationInteraction} />
               <div className="canvas-stage">
                 {selectedAspect === null ? (
@@ -524,31 +526,6 @@ export function App() {
               </div>
               <div className="canvas-footer"><span>Persistent transforms stay available above the canvas.</span><span>{loadedImage.format === 'gif' ? 'GIF edits use the first frame and export as a static image.' : 'Edits stay in this browser.'}</span></div>
             </section>
-            <div className={`right-workspace-column ${mobilePanel === 'export' ? 'mobile-open' : ''}`} onClick={(event) => { if (event.target === event.currentTarget) setMobilePanel(null); }}>
-              {mobilePanel === 'export' && <button type="button" className="mobile-export-close" onClick={() => setMobilePanel(null)} aria-label="Close export" title="Close export"><X size={18} /></button>}
-              <ExportPanel
-                originalWidth={loadedImage.element.naturalWidth}
-                originalHeight={loadedImage.element.naturalHeight}
-                fileSize={loadedImage.fileSize}
-                cropWidth={croppedAreaPixels?.width ?? null}
-                cropHeight={croppedAreaPixels?.height ?? null}
-                outputWidth={outputDimensions?.width ?? null}
-                outputHeight={outputDimensions?.height ?? null}
-                format={exportFormat}
-                quality={exportQuality}
-                backgroundColor={backgroundColor}
-                estimatedSize={preview.size}
-                exportStatus={visibleExportStatus}
-                supportedFormats={supportedFormats}
-                isLoading={isLoading}
-                onFormatChange={handleFormatChange}
-                onQualityChange={handleQualityChange}
-                onQualityInteractionStart={handleQualityInteractionStart}
-                onQualityCommit={handleQualityCommit}
-                onBackgroundChange={handleBackgroundChange}
-                onDownload={() => void handleDownload()}
-              />
-            </div>
           </div>
           <MobileEditorControls
             panel={mobilePanel}
@@ -557,6 +534,7 @@ export function App() {
             canUndo={canUndo}
             canRedo={canRedo}
             onPanelChange={setMobilePanel}
+            onExport={() => setIsExportOpen(true)}
             onAspectChange={handleAspectChange}
             onCropReset={resetCrop}
             outputWidth={outputDimensions?.width ?? null}
@@ -581,6 +559,30 @@ export function App() {
         </div>
       </>}
     </main>
+    <ExportPanel
+      open={isExportOpen}
+      onClose={closeExport}
+      originalWidth={loadedImage?.element.naturalWidth ?? 0}
+      originalHeight={loadedImage?.element.naturalHeight ?? 0}
+      fileSize={loadedImage?.fileSize ?? 0}
+      cropWidth={croppedAreaPixels?.width ?? null}
+      cropHeight={croppedAreaPixels?.height ?? null}
+      outputWidth={outputDimensions?.width ?? null}
+      outputHeight={outputDimensions?.height ?? null}
+      format={exportFormat}
+      quality={exportQuality}
+      backgroundColor={backgroundColor}
+      estimatedSize={preview.size}
+      exportStatus={visibleExportStatus}
+      supportedFormats={supportedFormats}
+      isLoading={isLoading}
+      onFormatChange={handleFormatChange}
+      onQualityChange={handleQualityChange}
+      onQualityInteractionStart={handleQualityInteractionStart}
+      onQualityCommit={handleQualityCommit}
+      onBackgroundChange={handleBackgroundChange}
+      onDownload={() => void handleDownload()}
+    />
     <Toast visible={toast.visible} message={toast.message} />
     <HistoryPanel open={isHistoryOpen} entries={historyEntries} currentIndex={historyCurrentIndex} onSelect={handleHistorySelect} onClose={closeHistory} />
     <ShortcutGuide open={isShortcutGuideOpen} onClose={() => setIsShortcutGuideOpen(false)} />

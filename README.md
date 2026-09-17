@@ -321,6 +321,8 @@ At mobile widths it uses a dedicated interaction model with:
 
 The mobile editor keeps the core crop → resize → export workflow intact while adapting the interaction surfaces for touch.
 
+Desktop viewport resilience is also part of the final v1.x layout behavior. The editor sidebar gives priority to the primary Crop/Resize controls, while the live preview region absorbs constrained vertical space without allowing secondary UI to overlap the primary controls. This prevents sidebar content from overlapping when browser or OS scaling reduces the available CSS viewport height.
+
 ---
 
 ## Accessibility
@@ -515,6 +517,7 @@ Current test areas include:
 - Rotated freeform geometry.
 - Preview sizing.
 - Performance measurement behavior.
+- Desktop sidebar layout resilience across constrained viewport heights.
 - Rotation-aware export geometry.
 
 Run the verification commands locally after installing dependencies:

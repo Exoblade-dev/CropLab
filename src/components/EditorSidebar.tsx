@@ -1,4 +1,4 @@
-import { ArrowRight, Crop, Lock, RotateCcw, StretchHorizontal, Unlock } from 'lucide-react';
+import { Crop, Layers3, Lock, MoreHorizontal, RotateCcw, StretchHorizontal, Unlock, WandSparkles } from 'lucide-react';
 import { ExportPreview } from '@/components/ExportPreview';
 import type { ExportStatus, ImageFormat } from '@/types/editor';
 import { ASPECT_RATIOS } from '@/lib/image/constants';
@@ -27,105 +27,88 @@ type Props = {
   backgroundColor: string;
 };
 
-const tools: { id: EditorTool; label: string; description: string; icon: typeof Crop }[] = [
-  { id: 'crop', label: 'Crop', description: 'Frame and aspect ratio', icon: Crop },
-  { id: 'resize', label: 'Resize', description: 'Set output dimensions', icon: StretchHorizontal },
+const activeTools = [
+  { id: 'crop' as const, label: 'Crop', hint: 'Frame', icon: Crop },
+  { id: 'resize' as const, label: 'Resize', hint: 'Scale', icon: StretchHorizontal },
 ];
 
-const comingSoonTools = [
-  'Compress',
-  'Adjust',
-  'Presets',
-  'Background Removal',
-  'OCR / Image to Text',
-  'Batch Processing',
+const futureTools = [
+  { label: 'Batch', hint: 'Soon', icon: Layers3 },
+  { label: 'Enhance', hint: 'Soon', icon: WandSparkles },
+  { label: 'More', hint: 'Soon', icon: MoreHorizontal },
 ] as const;
 
 export function EditorSidebar({ activeTool, selectedAspect, cropWidth, cropHeight, outputWidth, outputHeight, lockAspectRatio, isLoading, onToolChange, onAspectChange, onCropReset, onWidthChange, onHeightChange, onLockToggle, previewUrl, previewStatus, previewSize, format, quality, backgroundColor }: Props) {
   return (
-    <aside className="tools-panel" aria-label="Primary editing tools">
-      <div className="panel-label">Edit</div>
-      <nav className="tool-list" aria-label="Editing sections">
-        {tools.map(({ id, label, description, icon: Icon }) => (
-          <button key={id} className={`tool-item ${activeTool === id ? 'active' : ''}`} onClick={() => onToolChange(id)} aria-pressed={activeTool === id}>
-            <span className="tool-icon"><Icon size={17} /></span>
-            <span><strong>{label}</strong><small>{description}</small></span>
-          </button>
-        ))}
-      </nav>
-      <div className="tool-detail">
-        {activeTool === 'crop' && (
-          <div className="tool-detail-section">
-            <div className="detail-kicker">Crop</div>
-            <div className="detail-heading-row"><div><h2>Crop frame</h2><p>Drag the image or crop edges. Choose a ratio or stay free.</p></div><button className="icon-text-btn" onClick={onCropReset} title="Reset crop" aria-label="Reset crop"><RotateCcw size={13} /> Reset</button></div>
-            <div className="aspect-ratio-list">
-              {ASPECT_RATIOS.map((ratio) => (
-                <button key={ratio.label} className={`aspect-btn ${selectedAspect === ratio.value ? 'active' : ''}`} onClick={() => onAspectChange(ratio.value, ratio.label)} aria-label={`Crop ratio ${ratio.label}`}>
-                  <span className={`ratio-preview ${ratio.value === null ? 'free' : ''}`} style={ratio.value ? { aspectRatio: String(ratio.value) } : undefined} />
-                  <span>{ratio.label}</span>
-                </button>
-              ))}
-            </div>
-            <div className="crop-dimensions"><span>Crop dimensions</span><strong>{cropWidth && cropHeight ? `${Math.round(cropWidth)} × ${Math.round(cropHeight)} px` : '—'}</strong></div>
-          </div>
-        )}
-        {activeTool === 'resize' && (
-          <div className="tool-detail-section">
-            <div className="detail-kicker">Resize</div>
-            <div className="detail-heading-row">
-              <div><h2>Output dimensions</h2><p>Set the exact pixel dimensions for the exported image.</p></div>
-            </div>
-            <div className="resize-dimensions">
-              <div>
-                <label htmlFor="resize-width">Width</label>
-                <div className="resize-input-wrap"><input id="resize-width" type="number" min="1" value={outputWidth ?? ''} onChange={(event) => onWidthChange(event.target.value)} disabled={isLoading} /><span>px</span></div>
-              </div>
-              <span className="resize-times">×</span>
-              <div>
-                <label htmlFor="resize-height">Height</label>
-                <div className="resize-input-wrap"><input id="resize-height" type="number" min="1" value={outputHeight ?? ''} onChange={(event) => onHeightChange(event.target.value)} disabled={isLoading} /><span>px</span></div>
-              </div>
-            </div>
-            <button type="button" className={`resize-lock ${lockAspectRatio ? 'active' : ''}`} onClick={onLockToggle} disabled={isLoading} aria-pressed={lockAspectRatio}>
-              {lockAspectRatio ? <Lock size={13} /> : <Unlock size={13} />} Maintain aspect ratio
+    <aside className="edit-panel" aria-label="Edit workspace">
+      <div className="edit-rail">
+        <div className="edit-rail-brand" aria-hidden="true">E</div>
+        <div className="edit-rail-label">EDIT</div>
+        <nav className="edit-rail-tools" aria-label="Editing tools">
+          {activeTools.map(({ id, label, hint, icon: Icon }) => (
+            <button key={id} type="button" className={`edit-rail-tool ${activeTool === id ? 'active' : ''}`} onClick={() => onToolChange(id)} aria-pressed={activeTool === id} title={`${label} — ${hint}`}>
+              <span className="edit-rail-icon"><Icon size={19} /></span>
+              <span>{label}</span>
             </button>
-            <div className="resize-dimension-meta">
-              <span>Crop</span><strong>{cropWidth && cropHeight ? `${Math.round(cropWidth)} × ${Math.round(cropHeight)} px` : '—'}</strong>
-              <span>Output</span><strong>{outputWidth && outputHeight ? `${outputWidth} × ${outputHeight} px` : '—'}</strong>
-            </div>
-          </div>
-        )}
+          ))}
+          <span className="edit-rail-separator" />
+          {futureTools.map(({ label, hint, icon: Icon }) => (
+            <button key={label} type="button" className="edit-rail-tool future" disabled title={`${label} — coming soon`} aria-label={`${label} coming soon`}>
+              <span className="edit-rail-icon"><Icon size={18} /></span>
+              <span>{label}</span>
+              <small>{hint}</small>
+            </button>
+          ))}
+        </nav>
       </div>
-      <div className="tool-workflow" aria-label="Editing workflow">
-        <ExportPreview
-          previewUrl={previewUrl}
-          previewStatus={previewStatus}
-          previewSize={previewSize}
-          outputWidth={outputWidth}
-          outputHeight={outputHeight}
-          format={format}
-          quality={quality}
-          backgroundColor={backgroundColor}
-          disabled={isLoading}
-        />
-        <div className="tool-workflow-heading">
-          <span className="tool-workflow-kicker">Workflow</span>
-          <span className="tool-workflow-step">{activeTool === 'crop' ? '1 of 3' : '2 of 3'}</span>
+
+      <div className="edit-inspector">
+        <div className="inspector-scroll">
+          {activeTool === 'crop' && (
+            <section className="inspector-tool" aria-live="polite">
+              <div className="inspector-eyebrow">Crop</div>
+              <div className="inspector-title-row">
+                <div><h2>Frame your image</h2><p>Choose a ratio or create a free crop. Drag directly on the canvas.</p></div>
+                <button type="button" className="ghost-action" onClick={onCropReset} disabled={isLoading} title="Reset crop"><RotateCcw size={14} /> Reset</button>
+              </div>
+              <div className="control-label-row"><span>Aspect ratio</span><span className="control-hint">{selectedAspect === null ? 'Freeform' : 'Fixed frame'}</span></div>
+              <div className="aspect-ratio-list">
+                {ASPECT_RATIOS.map((ratio) => (
+                  <button key={ratio.label} type="button" className={`aspect-btn ${selectedAspect === ratio.value ? 'active' : ''}`} onClick={() => onAspectChange(ratio.value, ratio.label)} aria-label={`Crop ratio ${ratio.label}`} aria-pressed={selectedAspect === ratio.value}>
+                    <span className={`ratio-preview ${ratio.value === null ? 'free' : ''}`} style={ratio.value ? { aspectRatio: String(ratio.value) } : undefined} />
+                    <span>{ratio.label}</span>
+                  </button>
+                ))}
+              </div>
+              <div className="dimension-readout">
+                <div><span>Crop size</span><strong>{cropWidth && cropHeight ? `${Math.round(cropWidth)} × ${Math.round(cropHeight)}` : '—'}</strong></div>
+                <span>px</span>
+              </div>
+            </section>
+          )}
+
+          {activeTool === 'resize' && (
+            <section className="inspector-tool" aria-live="polite">
+              <div className="inspector-eyebrow">Resize</div>
+              <div className="inspector-title-row"><div><h2>Set output size</h2><p>Define the exact pixel dimensions of the image you will export.</p></div></div>
+              <div className="resize-dimensions">
+                <div><label htmlFor="resize-width">Width</label><div className="resize-input-wrap"><input id="resize-width" type="number" min="1" value={outputWidth ?? ''} onChange={(event) => onWidthChange(event.target.value)} disabled={isLoading} /><span>px</span></div></div>
+                <span className="resize-times">×</span>
+                <div><label htmlFor="resize-height">Height</label><div className="resize-input-wrap"><input id="resize-height" type="number" min="1" value={outputHeight ?? ''} onChange={(event) => onHeightChange(event.target.value)} disabled={isLoading} /><span>px</span></div></div>
+              </div>
+              <button type="button" className={`resize-lock ${lockAspectRatio ? 'active' : ''}`} onClick={onLockToggle} disabled={isLoading} aria-pressed={lockAspectRatio}>{lockAspectRatio ? <Lock size={14} /> : <Unlock size={14} />} <span>Maintain aspect ratio</span></button>
+              <div className="resize-summary"><div><span>Crop</span><strong>{cropWidth && cropHeight ? `${Math.round(cropWidth)} × ${Math.round(cropHeight)}` : '—'}</strong></div><div><span>Output</span><strong>{outputWidth && outputHeight ? `${outputWidth} × ${outputHeight}` : '—'}</strong></div></div>
+            </section>
+          )}
         </div>
-        <div className="tool-workflow-path" aria-label="Crop, Resize, Export workflow">
-          <span className={activeTool === 'crop' ? 'current' : 'complete'}>Crop</span>
-          <ArrowRight size={11} aria-hidden="true" />
-          <span className={activeTool === 'resize' ? 'current' : ''}>Resize</span>
-          <ArrowRight size={11} aria-hidden="true" />
-          <span>Export</span>
-        </div>
-        <p>{activeTool === 'crop' ? 'Frame the image first, then set the final pixel dimensions in Resize.' : 'Set the final pixel dimensions here, then choose format and quality in Export.'}</p>
-        <div className="tool-coming-soon" aria-label="Additional tools coming soon">
-          <span className="tool-coming-soon-label">More tools</span>
-          <span className="tool-coming-soon-count">{comingSoonTools.length} coming soon</span>
-        </div>
+
+        <section className="preview-region" aria-label="Live export preview">
+          <div className="preview-region-header"><div><span className="inspector-eyebrow">Output</span><strong>Live preview</strong></div><span>Updates as you edit</span></div>
+          <ExportPreview previewUrl={previewUrl} previewStatus={previewStatus} previewSize={previewSize} outputWidth={outputWidth} outputHeight={outputHeight} format={format} quality={quality} backgroundColor={backgroundColor} disabled={isLoading} />
+        </section>
+
+        <button type="button" className="more-tools-footer" disabled aria-label="More tools coming soon"><MoreHorizontal size={16} /><span>More tools</span><small>Coming soon</small></button>
       </div>
     </aside>
   );
 }
-
