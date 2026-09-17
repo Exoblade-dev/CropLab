@@ -7,10 +7,11 @@ import { getCropperTransform } from '@/lib/image/transform';
 import type { CropState, ExportSettings } from '@/types/editor';
 
 describe('editing interaction helpers', () => {
-  it('clamps zoom to the v1.4 interaction range', () => {
+  it('clamps zoom to the expanded interaction range', () => {
     expect(clampZoom(0.1)).toBe(0.2);
     expect(clampZoom(1)).toBe(1);
-    expect(clampZoom(3)).toBe(2);
+    expect(clampZoom(3)).toBe(3);
+    expect(clampZoom(6)).toBe(5);
   });
 
   it('normalizes rotation to the -180..180 range', () => {

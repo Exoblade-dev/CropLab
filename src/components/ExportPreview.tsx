@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Eye, Maximize2, X } from 'lucide-react';
+import { Eye, X } from 'lucide-react';
 import type { ExportStatus, ImageFormat } from '@/types/editor';
 import { formatFileSize } from '@/lib/image/export';
 
@@ -15,13 +15,6 @@ type Props = {
   disabled?: boolean;
 };
 
-const STATUS_COPY: Partial<Record<ExportStatus, string>> = {
-  preparing: 'Preparing preview…',
-  cropping: 'Rendering crop…',
-  resizing: 'Applying resize…',
-  encoding: 'Updating preview…',
-  error: 'Preview unavailable',
-};
 
 function getFormatLabel(format: ImageFormat) {
   return format === 'jpeg' ? 'JPEG' : format.toUpperCase();
@@ -52,41 +45,21 @@ export function ExportPreview({ previewUrl, previewStatus, previewSize, outputWi
   }, [previewStatus]);
 
   const canOpen = Boolean(previewUrl && previewStatus === 'complete' && outputWidth && outputHeight && !disabled);
-  const statusCopy = STATUS_COPY[previewStatus];
   const dimensionLabel = outputWidth && outputHeight ? `${outputWidth} × ${outputHeight} px` : '—';
   const formatLabel = getFormatLabel(format);
 
   return (
     <>
-      <div className="tool-preview" aria-label="Live export preview">
-        <div className="tool-preview-heading">
-          <span><Eye size={11} /> Live preview</span>
-          <span>{canOpen ? 'Click to enlarge' : statusCopy ?? 'Final image'}</span>
-        </div>
-        <button
-          type="button"
-          className={`tool-preview-stage ${canOpen ? 'is-clickable' : ''}`}
-          onClick={() => canOpen && setIsOpen(true)}
-          disabled={!canOpen}
-          aria-label={canOpen ? `Open export preview at ${dimensionLabel}` : 'Export preview is not ready'}
-        >
-          {previewUrl ? (
-            <span className="tool-preview-checkerboard">
-              <img src={previewUrl} alt="Live preview of the exported image" className="tool-preview-image" />
-            </span>
-          ) : (
-            <span className="tool-preview-placeholder">
-              {statusCopy ?? 'Preview will appear here'}
-            </span>
-          )}
-          {canOpen && <span className="tool-preview-expand" aria-hidden="true"><Maximize2 size={12} /></span>}
-          {previewStatus !== 'complete' && previewUrl && <span className="tool-preview-status">{statusCopy ?? 'Updating…'}</span>}
-        </button>
-        <div className="tool-preview-meta">
-          <strong>{dimensionLabel}</strong>
-          <span>{previewSize === null ? `${formatLabel} · estimating size` : `${formatLabel} · ${formatFileSize(previewSize)}`}</span>
-        </div>
-      </div>
+      <button
+        type="button"
+        className="canvas-preview-button"
+        onClick={() => setIsOpen(true)}
+        disabled={!canOpen}
+        aria-label={canOpen ? `Open export preview at ${dimensionLabel}` : 'Preview is not ready'}
+      >
+        <Eye size={14} />
+        Preview
+      </button>
 
       {isOpen && previewUrl && (
         <div className="export-preview-backdrop" role="presentation" onMouseDown={(event) => { if (event.currentTarget === event.target) setIsOpen(false); }}>

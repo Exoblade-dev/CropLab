@@ -30,15 +30,27 @@ describe('v2 edit workspace layout', () => {
     expect(appCss).toMatch(/\.edit-inspector\s*\{[^}]*grid-template-rows:\s*minmax\(0,\s*1fr\)\s+auto\s+auto;/s);
   });
 
-  it('keeps contextual controls scrollable while reserving a dedicated live preview region', () => {
+  it('keeps contextual controls scrollable and makes preview an explicit action', () => {
     expect(sidebarTsx).toMatch(/className="inspector-scroll"/);
-    expect(sidebarTsx).toMatch(/className="preview-region"/);
-    expect(sidebarTsx).toMatch(/aria-label="Live export preview"/);
+    expect(sidebarTsx).not.toMatch(/className="preview-region"/);
+    expect(sidebarTsx).not.toMatch(/Live export preview/);
+    expect(appTsx).toMatch(/<ExportPreview[\s\S]*previewUrl=\{preview\.url\}/);
+    expect(appTsx).toMatch(/className="canvas-header-actions-buttons"/);
+    expect(appTsx).toMatch(/Preview/);
     expect(appCss).toMatch(/\.inspector-scroll\s*\{[^}]*min-height:\s*0;[^}]*overflow:\s*auto;/s);
-    expect(appCss).toMatch(/\.preview-region\s*\{[^}]*border-top:\s*1px solid var\(--border\);/s);
-    expect(appCss).toMatch(/\.tool-preview-stage\s*\{[^}]*height:\s*112px;/s);
-    expect(appCss).toMatch(/@media\s*\(max-height:\s*760px\)\s*and\s*\(min-width:\s*901px\)/s);
-    expect(appCss).toMatch(/\.tool-preview-stage\s*\{\s*height:\s*88px;/s);
+    expect(appCss).not.toMatch(/\.preview-region\s*\{/);
+    expect(appCss).not.toMatch(/\.tool-preview-stage\s*\{/);
+    expect(appCss).toMatch(/\.canvas-preview-button\s*\{/);
+  });
+
+  it('keeps important destructive actions separated from replacement and undo controls', () => {
+    const toolbarTsx = readFileSync(new URL('../src/components/EditorToolbar.tsx', import.meta.url), 'utf8');
+    expect(toolbarTsx).not.toMatch(/Flip vertical/);
+    expect(toolbarTsx).toMatch(/toolbar-danger-cluster/);
+    expect(toolbarTsx).toMatch(/onResetRotation/);
+    expect(toolbarTsx).toMatch(/Rotation in degrees/);
+    expect(appCss).toMatch(/\.toolbar-clear-button/);
+    expect(appCss).toMatch(/\.toolbar-important-button/);
   });
 
   it('opens export on demand as a right-side drawer instead of reserving workspace space', () => {
@@ -54,6 +66,10 @@ describe('v2 edit workspace layout', () => {
     expect(appCss).toMatch(/\.export-overlay\s*\{[^}]*position:\s*fixed;[^}]*inset:\s*0;/s);
     expect(appCss).toMatch(/\.export-drawer\s*\{[^}]*grid-template-rows:\s*auto\s+minmax\(0,\s*1fr\)\s+auto;/s);
     expect(appCss).not.toMatch(/\.export-dialog-backdrop\s*\{/);
+    expect(exportPanelTsx).toMatch(/Final step/);
+    expect(exportPanelTsx).toMatch(/export-section-kicker\">01/);
+    expect(exportPanelTsx).toMatch(/export-section-kicker\">02/);
+    expect(exportPanelTsx).toMatch(/export-section-kicker\">03/);
   });
 
   it('keeps mobile export on-demand through the shared export action', () => {

@@ -8,6 +8,7 @@ import { ConfirmationDialog } from '@/components/ConfirmationDialog';
 import { EditorSidebar, type EditorTool } from '@/components/EditorSidebar';
 import { EditorToolbar } from '@/components/EditorToolbar';
 import { ExportPanel } from '@/components/ExportPanel';
+import { ExportPreview } from '@/components/ExportPreview';
 import { HistoryPanel } from '@/components/HistoryPanel';
 import { MobileEditorControls } from '@/components/MobileEditorControls';
 import { FreeformCropper } from '@/components/FreeformCropper';
@@ -228,6 +229,14 @@ export function App() {
   const zoomIn = useCallback(() => setCropState((prev) => ({ ...prev, zoom: clampZoom(prev.zoom + 0.1) })), []);
   const zoomOut = useCallback(() => setCropState((prev) => ({ ...prev, zoom: clampZoom(prev.zoom - 0.1) })), []);
   const resetZoom = useCallback(() => setCropState((prev) => ({ ...prev, zoom: DEFAULT_ZOOM })), []);
+
+  const resetRotation = useCallback(() => {
+    flushPendingResize();
+    const nextCropState = { ...cropState, transform: { ...cropState.transform, rotation: 0 } };
+    recordHistory({ ...currentSnapshot, cropState: nextCropState }, 'Rotation reset');
+    setCropState(nextCropState);
+    showToast('Rotation reset');
+  }, [cropState, currentSnapshot, flushPendingResize, recordHistory, showToast]);
 
   const resetCrop = useCallback(() => {
     flushPendingResize();
@@ -477,16 +486,10 @@ export function App() {
               onWidthChange={(value) => handleDimension('width', value)}
               onHeightChange={(value) => handleDimension('height', value)}
               onLockToggle={handleLockToggle}
-              previewUrl={preview.url}
-              previewStatus={preview.status}
-              previewSize={preview.size}
-              format={exportFormat}
-              quality={exportQuality}
-              backgroundColor={backgroundColor}
             />
             <section className="canvas-workspace" aria-label="Image canvas">
-              <div className="canvas-header"><div><span className="eyebrow">Canvas</span><strong>{loadedImage.element.naturalWidth} × {loadedImage.element.naturalHeight}</strong></div><div className="canvas-header-actions"><span>{selectedAspect === null ? 'Drag crop box · resize handles · zoom and rotate above' : 'Drag to reposition · scroll to zoom · pinch on touch'}</span><button type="button" className="canvas-export-button" onClick={() => setIsExportOpen(true)} disabled={isLoading}><Download size={14} /> Export</button></div></div>
-              <EditorToolbar canUndo={canUndo} canRedo={canRedo} isHistoryOpen={isHistoryOpen} onHistory={() => setIsHistoryOpen(true)} zoom={cropState.zoom} rotation={cropState.transform.rotation} onReplace={replaceImage} onClear={clearImage} onUndo={performUndo} onRedo={performRedo} onRotateLeft={() => rotate(-90)} onRotateRight={() => rotate(90)} onFlipHorizontal={() => flip('x')} onFlipVertical={() => flip('y')} onReset={resetEdits} onZoomChange={handleZoom} onZoomPreset={commitZoomPreset} onRotationChange={handleRotation} onRotationCommit={endInteraction} onRotationInteractionStart={beginRotationInteraction} />
+              <div className="canvas-header"><div><span className="eyebrow">Canvas</span><strong>{loadedImage.element.naturalWidth} × {loadedImage.element.naturalHeight}</strong></div><div className="canvas-header-actions"><span>{selectedAspect === null ? 'Drag crop box · resize handles · zoom and rotate above' : 'Drag to reposition · scroll to zoom · pinch on touch'}</span><div className="canvas-header-actions-buttons"><ExportPreview previewUrl={preview.url} previewStatus={preview.status} previewSize={preview.size} outputWidth={outputDimensions?.width ?? null} outputHeight={outputDimensions?.height ?? null} format={exportFormat} quality={exportQuality} backgroundColor={backgroundColor} disabled={isLoading} /><button type="button" className="canvas-export-button" onClick={() => setIsExportOpen(true)} disabled={isLoading}><Download size={14} /> Export</button></div></div></div>
+              <EditorToolbar canUndo={canUndo} canRedo={canRedo} isHistoryOpen={isHistoryOpen} onHistory={() => setIsHistoryOpen(true)} zoom={cropState.zoom} rotation={cropState.transform.rotation} onReplace={replaceImage} onClear={clearImage} onUndo={performUndo} onRedo={performRedo} onRotateLeft={() => rotate(-90)} onRotateRight={() => rotate(90)} onFlipHorizontal={() => flip('x')} onResetRotation={resetRotation} onReset={resetEdits} onZoomChange={handleZoom} onZoomPreset={commitZoomPreset} onRotationChange={handleRotation} onRotationCommit={endInteraction} onRotationInteractionStart={beginRotationInteraction} />
               <div className="canvas-stage">
                 {selectedAspect === null ? (
                   <FreeformCropper
@@ -547,7 +550,6 @@ export function App() {
             onRotateLeft={() => rotate(-90)}
             onRotateRight={() => rotate(90)}
             onFlipHorizontal={() => flip('x')}
-            onFlipVertical={() => flip('y')}
             onZoomPreset={commitZoomPreset}
             onUndo={performUndo}
             onRedo={performRedo}

@@ -1,7 +1,6 @@
 import { Crop, Layers3, Lock, MoreHorizontal, RotateCcw, StretchHorizontal, Unlock, WandSparkles } from 'lucide-react';
-import { ExportPreview } from '@/components/ExportPreview';
-import type { ExportStatus, ImageFormat } from '@/types/editor';
 import { ASPECT_RATIOS } from '@/lib/image/constants';
+import { AspectRatioIcon } from '@/components/AspectRatioIcon';
 
 export type EditorTool = 'crop' | 'resize';
 type Props = {
@@ -19,12 +18,6 @@ type Props = {
   onWidthChange: (value: string) => void;
   onHeightChange: (value: string) => void;
   onLockToggle: () => void;
-  previewUrl: string | null;
-  previewStatus: ExportStatus;
-  previewSize: number | null;
-  format: ImageFormat;
-  quality: number;
-  backgroundColor: string;
 };
 
 const activeTools = [
@@ -38,7 +31,7 @@ const futureTools = [
   { label: 'More', hint: 'Soon', icon: MoreHorizontal },
 ] as const;
 
-export function EditorSidebar({ activeTool, selectedAspect, cropWidth, cropHeight, outputWidth, outputHeight, lockAspectRatio, isLoading, onToolChange, onAspectChange, onCropReset, onWidthChange, onHeightChange, onLockToggle, previewUrl, previewStatus, previewSize, format, quality, backgroundColor }: Props) {
+export function EditorSidebar({ activeTool, selectedAspect, cropWidth, cropHeight, outputWidth, outputHeight, lockAspectRatio, isLoading, onToolChange, onAspectChange, onCropReset, onWidthChange, onHeightChange, onLockToggle }: Props) {
   return (
     <aside className="edit-panel" aria-label="Edit workspace">
       <div className="edit-rail">
@@ -75,7 +68,7 @@ export function EditorSidebar({ activeTool, selectedAspect, cropWidth, cropHeigh
               <div className="aspect-ratio-list">
                 {ASPECT_RATIOS.map((ratio) => (
                   <button key={ratio.label} type="button" className={`aspect-btn ${selectedAspect === ratio.value ? 'active' : ''}`} onClick={() => onAspectChange(ratio.value, ratio.label)} aria-label={`Crop ratio ${ratio.label}`} aria-pressed={selectedAspect === ratio.value}>
-                    <span className={`ratio-preview ${ratio.value === null ? 'free' : ''}`} style={ratio.value ? { aspectRatio: String(ratio.value) } : undefined} />
+                    <AspectRatioIcon label={ratio.label} />
                     <span>{ratio.label}</span>
                   </button>
                 ))}
@@ -101,11 +94,6 @@ export function EditorSidebar({ activeTool, selectedAspect, cropWidth, cropHeigh
             </section>
           )}
         </div>
-
-        <section className="preview-region" aria-label="Live export preview">
-          <div className="preview-region-header"><div><span className="inspector-eyebrow">Output</span><strong>Live preview</strong></div><span>Updates as you edit</span></div>
-          <ExportPreview previewUrl={previewUrl} previewStatus={previewStatus} previewSize={previewSize} outputWidth={outputWidth} outputHeight={outputHeight} format={format} quality={quality} backgroundColor={backgroundColor} disabled={isLoading} />
-        </section>
 
         <button type="button" className="more-tools-footer" disabled aria-label="More tools coming soon"><MoreHorizontal size={16} /><span>More tools</span><small>Coming soon</small></button>
       </div>
