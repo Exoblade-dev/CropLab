@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { Area } from 'react-easy-crop';
-import { createExportCanvas, encodeCanvas } from '@/lib/image/export';
+import { createExportCanvas, encodeCanvas, getInteractivePreviewSettings } from '@/lib/image/export';
 import type { ExportSettings, ExportStatus, TransformState } from '@/types/editor';
 
 type Params = {
@@ -69,12 +69,16 @@ export function useExportPreview({ image, crop, transform, settings }: Params) {
         if (cancelled) return;
 
         setPreview((current) => ({ ...current, status: 'resizing', error: null }));
-        const canvas = createExportCanvas(image, crop, transform, settings);
+        // Interactive preview must never run the full-resolution export pipeline.
+        // In particular, sharpen is a per-pixel convolution and can otherwise
+        // block the main thread for large source/output images.
+        const previewSettings = getInteractivePreviewSettings(crop, settings);
+        const canvas = createExportCanvas(image, crop, transform, previewSettings);
         await new Promise<void>((resolve) => window.requestAnimationFrame(() => resolve()));
         if (cancelled) return;
 
         setPreview((current) => ({ ...current, status: 'encoding', error: null }));
-        const encodePromise = encodeCanvas(canvas, settings);
+        const encodePromise = encodeCanvas(canvas, previewSettings);
         encodingKeyRef.current = previewKey;
         encodingPromiseRef.current = encodePromise;
         const blob = await encodePromise;

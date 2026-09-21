@@ -5,6 +5,8 @@ import { validateCanvasDimensions } from '@/lib/image/validation';
 import { measureAsync, measureSync } from '@/lib/performance/metrics';
 import { applyAdjustments } from '@/lib/image/adjustments';
 
+export const MAX_INTERACTIVE_PREVIEW_DIMENSION = 1280;
+
 export function getOutputDimensions(crop: Area, settings: ExportSettings) {
   let width = crop.width;
   let height = crop.height;
@@ -22,6 +24,22 @@ export function getOutputDimensions(crop: Area, settings: ExportSettings) {
   }
 
   return { width, height };
+}
+
+export function getInteractivePreviewSettings(crop: Area, settings: ExportSettings): ExportSettings {
+  const output = getOutputDimensions(crop, settings);
+  const largestDimension = Math.max(output.width, output.height);
+
+  if (largestDimension <= MAX_INTERACTIVE_PREVIEW_DIMENSION) {
+    return settings;
+  }
+
+  const scale = MAX_INTERACTIVE_PREVIEW_DIMENSION / largestDimension;
+  return {
+    ...settings,
+    width: Math.max(1, Math.round(output.width * scale)),
+    height: Math.max(1, Math.round(output.height * scale)),
+  };
 }
 
 export function getMimeType(format: ImageFormat): string {
