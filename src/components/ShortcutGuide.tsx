@@ -1,4 +1,6 @@
 import { X } from 'lucide-react';
+import { useRef } from 'react';
+import { useDialogA11y } from '@/hooks/use-dialog-a11y';
 
 const SHORTCUTS = [
   ['Ctrl/Cmd + Z', 'Undo'],
@@ -20,6 +22,9 @@ type Props = {
 };
 
 export function ShortcutGuide({ open, onClose }: Props) {
+  const closeButtonRef = useRef<HTMLButtonElement | null>(null);
+  useDialogA11y(open, onClose, closeButtonRef);
+
   if (!open) return null;
 
   return (
@@ -30,7 +35,7 @@ export function ShortcutGuide({ open, onClose }: Props) {
             <span className="eyebrow">Keyboard</span>
             <h2 id="shortcut-guide-title">Shortcut guide</h2>
           </div>
-          <button type="button" className="app-modal-close" onClick={onClose} aria-label="Close shortcut guide" title="Close shortcut guide">
+          <button ref={closeButtonRef} type="button" className="app-modal-close" onClick={onClose} aria-label="Close shortcut guide" title="Close shortcut guide">
             <X size={18} />
           </button>
         </header>

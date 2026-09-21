@@ -8,14 +8,16 @@ import { ShortcutGuide } from '@/components/ShortcutGuide';
 import { Toast } from '@/components/Toast';
 import { UploadScreen } from '@/components/UploadScreen';
 import { EditorWorkspace } from '@/components/EditorWorkspace';
+import { PerformanceDiagnostics } from '@/components/PerformanceDiagnostics';
 import { useCropLabEditor } from '@/hooks/use-croplab-editor';
 
 export function App() {
   const editor = useCropLabEditor();
   const {
-    theme, setTheme, loadedImage, loadAndReset, goHome, setIsShortcutGuideOpen, setIsExportOpen,
+    theme, setTheme, loadedImage, submitImageInput, goHome, setIsShortcutGuideOpen, setIsExportOpen,
     isExportOpen, preview, outputDimensions, exportFormat, exportQuality, backgroundColor,
     isLoading, supportedFormats, visibleExportStatus, handleFormatChange, handleQualityChange,
+    imageItems, activeItem, batchExport, handleBatchExport, cancelBatchExport, exportSettings,
     handleQualityInteractionStart, handleQualityCommit, handleBackgroundChange, handleDownload,
     isHistoryOpen, historyEntries, historyCurrentIndex, handleHistorySelect, setIsHistoryOpen,
     toast, isShortcutGuideOpen, confirmation, confirmAction, cancelConfirmation,
@@ -31,7 +33,7 @@ export function App() {
       onShortcuts={() => setIsShortcutGuideOpen(true)}
     />
     <main className="app-main" id="main-content">
-      {!loadedImage ? <UploadScreen onLoad={(file) => void loadAndReset(file)} /> : <EditorWorkspace editor={editor} />}
+      {!loadedImage ? <UploadScreen onInput={(files, source) => void submitImageInput(files, source)} /> : <EditorWorkspace editor={editor} />}
     </main>
     <ExportPanel
       open={isExportOpen}
@@ -39,6 +41,9 @@ export function App() {
       originalWidth={loadedImage?.element.naturalWidth ?? 0}
       originalHeight={loadedImage?.element.naturalHeight ?? 0}
       fileSize={loadedImage?.fileSize ?? 0}
+      fileName={activeItem?.file.name ?? 'Source image'}
+      sourceFormat={loadedImage?.format ?? 'unknown'}
+      metadata={loadedImage?.metadata ?? null}
       cropWidth={editor.croppedAreaPixels?.width ?? null}
       cropHeight={editor.croppedAreaPixels?.height ?? null}
       outputWidth={outputDimensions?.width ?? null}
@@ -55,8 +60,15 @@ export function App() {
       onQualityInteractionStart={handleQualityInteractionStart}
       onQualityCommit={handleQualityCommit}
       onBackgroundChange={handleBackgroundChange}
+      onBatchExport={() => void handleBatchExport()}
+      onCancelBatchExport={cancelBatchExport}
+      batchExportActive={batchExport.active}
+      batchCompleted={batchExport.completed}
+      batchTotal={batchExport.total}
+      batchAvailable={imageItems.length > 1}
       onDownload={() => void handleDownload()}
     />
+    <PerformanceDiagnostics image={loadedImage?.element ?? null} crop={editor.croppedAreaPixels} transform={editor.cropState.transform} settings={exportSettings} />
     <Toast visible={toast.visible} message={toast.message} />
     <HistoryPanel open={isHistoryOpen} entries={historyEntries} currentIndex={historyCurrentIndex} onSelect={handleHistorySelect} onClose={() => setIsHistoryOpen(false)} />
     <ShortcutGuide open={isShortcutGuideOpen} onClose={() => setIsShortcutGuideOpen(false)} />

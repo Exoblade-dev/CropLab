@@ -7,6 +7,7 @@ import { EditorSidebar } from '@/components/EditorSidebar';
 import { EditorToolbar } from '@/components/EditorToolbar';
 import { ExportPreview } from '@/components/ExportPreview';
 import { MobileEditorControls } from '@/components/MobileEditorControls';
+import { ImageThumbnailRail } from '@/components/ImageThumbnailRail';
 import { FreeformCropper } from '@/components/FreeformCropper';
 import type { useCropLabEditor } from '@/hooks/use-croplab-editor';
 import { MAX_ZOOM, MIN_ZOOM } from '@/lib/editor/interaction';
@@ -16,9 +17,9 @@ type EditorState = ReturnType<typeof useCropLabEditor>;
 
 export function EditorWorkspace({ editor }: { editor: EditorState }) {
   const {
-    loadedImage, loadAndReset, activeTool, selectedAspect, croppedAreaPixels, outputDimensions, lockAspectRatio,
+    loadedImage, submitImageInput, submitReplaceInput, imageItems, activeImageId, switchImage, removeCollectionImage, batchExport, handleBatchExport, cancelBatchExport, activeTool, selectedAspect, croppedAreaPixels, outputDimensions, lockAspectRatio,
     isLoading, setActiveTool, handleAspectChange, resetCrop, handleDimension, handleLockToggle, cropState,
-    canUndo, canRedo, isHistoryOpen, setIsHistoryOpen, replaceImage, clearImage, performUndo, performRedo,
+    canUndo, canRedo, isHistoryOpen, setIsHistoryOpen, clearImage, performUndo, performRedo,
     rotate, flip, resetRotation, resetEdits, handleZoom, commitZoomPreset, handleRotation, endInteraction,
     beginRotationInteraction, beginCropInteraction, freeCropRect, handleFreeformCropChange, cropperTransform,
     handleCropPositionChange, handleCropAreaChange, preview, updateFitContainerSize, exportFormat, exportQuality, backgroundColor, setIsExportOpen, mobilePanel, setMobilePanel, adjustments, handleAdjustmentChange, handleAdjustmentCommit, resetAdjustments, supportedFormats,
@@ -43,7 +44,7 @@ export function EditorWorkspace({ editor }: { editor: EditorState }) {
   const handleFit = editor.handleFit;
 
   return <>
-        <input id="replace-image-input" type="file" accept="image/jpeg,image/png,image/webp,image/gif" hidden onChange={(event) => { const file = event.target.files?.[0]; if (file) void loadAndReset(file); event.currentTarget.value = ''; }} />
+        <input id="replace-image-input" type="file" accept="image/jpeg,image/png,image/webp,image/gif" multiple hidden onChange={(event) => { void submitReplaceInput(Array.from(event.target.files ?? []), 'picker'); event.currentTarget.value = ''; }} />
         <div className="workspace-shell">
           <div className="workspace-grid">
             <EditorSidebar
@@ -68,7 +69,7 @@ export function EditorWorkspace({ editor }: { editor: EditorState }) {
             />
             <section className="canvas-workspace" aria-label="Image canvas">
               <div className="canvas-header"><div><span className="eyebrow">Canvas</span><strong>{loadedImage.element.naturalWidth} × {loadedImage.element.naturalHeight}</strong></div><div className="canvas-header-actions"><span>{selectedAspect === null ? 'Drag crop box · resize handles · zoom and rotate above' : 'Drag to reposition · scroll to zoom · pinch on touch'}</span><div className="canvas-header-actions-buttons"><ExportPreview previewUrl={preview.url} beforePreviewUrl={preview.beforePreviewUrl} beforePreviewReady={preview.beforePreviewReady} previewStatus={preview.status} previewSize={preview.size} outputWidth={outputDimensions?.width ?? null} outputHeight={outputDimensions?.height ?? null} originalWidth={loadedImage.element.naturalWidth} originalHeight={loadedImage.element.naturalHeight} originalFileSize={loadedImage.fileSize} format={exportFormat} quality={exportQuality} backgroundColor={backgroundColor} availableFormats={supportedFormats.map((item) => item.id)} onFormatChange={editor.handleFormatChange} getInspectionBlob={preview.getInspectionBlob} getBeforeInspectionBlob={preview.getBeforeInspectionBlob} disabled={isLoading} /><button type="button" className="canvas-export-button" onClick={() => setIsExportOpen(true)} disabled={isLoading}><Download size={14} /> Export</button></div></div></div>
-              <EditorToolbar canUndo={canUndo} canRedo={canRedo} isHistoryOpen={isHistoryOpen} onHistory={() => setIsHistoryOpen(true)} zoom={cropState.zoom} rotation={cropState.transform.rotation} onReplace={replaceImage} onClear={clearImage} onUndo={performUndo} onRedo={performRedo} onRotateLeft={() => rotate(-90)} onRotateRight={() => rotate(90)} onFlipHorizontal={() => flip('x')} onResetRotation={resetRotation} onReset={resetEdits} onZoomChange={handleZoom} onZoomPreset={commitZoomPreset} onFit={handleFit} onRotationChange={handleRotation} onRotationCommit={endInteraction} onRotationInteractionStart={beginRotationInteraction} />
+              <EditorToolbar canUndo={canUndo} canRedo={canRedo} isHistoryOpen={isHistoryOpen} onHistory={() => setIsHistoryOpen(true)} zoom={cropState.zoom} rotation={cropState.transform.rotation} onClear={clearImage} onUndo={performUndo} onRedo={performRedo} onRotateLeft={() => rotate(-90)} onRotateRight={() => rotate(90)} onFlipHorizontal={() => flip('x')} onResetRotation={resetRotation} onReset={resetEdits} onZoomChange={handleZoom} onZoomPreset={commitZoomPreset} onFit={handleFit} onRotationChange={handleRotation} onRotationCommit={endInteraction} onRotationInteractionStart={beginRotationInteraction} />
               <div className="canvas-stage" ref={stageRef} style={{ '--croplab-adjust-filter': editor.adjustmentCssFilter } as CSSProperties}>
                 {selectedAspect === null ? (
                   <FreeformCropper
@@ -109,6 +110,19 @@ export function EditorWorkspace({ editor }: { editor: EditorState }) {
               </div>
               <div className="canvas-footer"><span>Persistent transforms stay available above the canvas.</span><span>{loadedImage.format === 'gif' ? 'GIF edits use the first frame and export as a static image.' : 'Edits stay in this browser.'}</span></div>
             </section>
+            <ImageThumbnailRail
+              items={imageItems}
+              activeId={activeImageId}
+              disabled={isLoading}
+              batchExportActive={batchExport.active}
+              batchCompleted={batchExport.completed}
+              batchTotal={batchExport.total}
+              onSelect={(id) => void switchImage(id)}
+              onRemove={removeCollectionImage}
+              onAdd={(files) => { if (files.length > 0) void submitImageInput(files, 'picker'); }}
+              onBatchExport={() => void handleBatchExport()}
+              onCancelBatchExport={cancelBatchExport}
+            />
           </div>
           <MobileEditorControls
             panel={mobilePanel}
@@ -135,7 +149,6 @@ export function EditorWorkspace({ editor }: { editor: EditorState }) {
             onUndo={performUndo}
             onRedo={performRedo}
             onHistory={() => setIsHistoryOpen(true)}
-            onReplace={replaceImage}
             onClear={clearImage}
             onReset={resetEdits}
             adjustments={adjustments}

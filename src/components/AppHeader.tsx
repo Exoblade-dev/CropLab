@@ -21,7 +21,7 @@ export function AppHeader({ theme, onToggle, onExport, onHome, onShortcuts }: Pr
         <span className="local-status"><span className="status-dot" />Local only</span>
         <button type="button" className="header-utility-button" onClick={onShortcuts} aria-label="Open keyboard shortcuts" title="Keyboard shortcuts"><Keyboard size={15} /><span>Shortcuts</span></button>
         <button type="button" className="theme-toggle" onClick={onToggle} aria-label="Toggle theme" title="Toggle light/dark mode">{theme === 'light' ? <Moon size={16} /> : <Sun size={16} />}</button>
-        {onExport && <button type="button" className="header-export-button" onClick={onExport}><Download size={16} /> Export</button>}
+        {onExport && <button type="button" className="header-export-button" onClick={onExport} aria-label="Export image"><Download size={16} /> Export</button>}
       </div>
     </header>
   );

@@ -18,6 +18,11 @@ export function useEditorHistory(initialSnapshot: EditorSnapshot) {
     setCurrentIndex(0);
   }, []);
 
+  const restoreHistory = useCallback((state: { entries: EditorHistoryEntry[]; currentIndex: number }) => {
+    setEntries(state.entries);
+    setCurrentIndex(state.currentIndex);
+  }, []);
+
   const undo = useCallback(() => {
     const next = moveHistory(entries, currentIndex, -1);
     if (next.snapshot) setCurrentIndex(next.currentIndex);
@@ -43,6 +48,7 @@ export function useEditorHistory(initialSnapshot: EditorSnapshot) {
     canRedo: currentIndex < entries.length - 1,
     record,
     resetHistory,
+    restoreHistory,
     undo,
     redo,
     jumpTo,

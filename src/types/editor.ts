@@ -31,11 +31,27 @@ export type ExportSettings = {
   backgroundColor: string;
   adjustments: AdjustmentState;
 };
+export type ImageMetadataKind = 'EXIF' | 'XMP' | 'ICC' | 'IPTC' | 'Comment' | 'Text' | 'Unknown';
+export type ImageMetadata = {
+  kinds: ImageMetadataKind[];
+  hasMetadata: boolean;
+  cameraMake: string | null;
+  cameraModel: string | null;
+  captureDate: string | null;
+  orientation: number | null;
+  iso: number | null;
+  exposureTime: string | null;
+  fNumber: string | null;
+  focalLength: string | null;
+  hasGps: boolean;
+};
+
 export type LoadedImage = {
   src: string;
   element: HTMLImageElement;
   fileSize: number;
   format: InputImageFormat;
+  metadata: ImageMetadata;
   previewScaleX: number;
   previewScaleY: number;
   previewWidth: number;

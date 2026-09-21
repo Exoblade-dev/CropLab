@@ -6,11 +6,16 @@ import { useEditorHistory } from '@/hooks/use-editor-history';
 import { useExportPreview } from '@/hooks/use-export-preview';
 import { useSupportedExportFormats } from '@/hooks/use-supported-export-formats';
 import { useImageLoader } from '@/hooks/use-image-loader';
+import { useImageInput } from '@/hooks/use-image-input';
+import type { ImageInputResult } from '@/lib/image/input';
 import { useKeyboardShortcuts } from '@/hooks/use-keyboard-shortcuts';
 import { useTheme } from '@/hooks/use-theme';
 import { DEFAULT_CROP_STATE } from '@/lib/image/constants';
-import { createExportCanvas, encodeCanvas, getFileExtension, getOutputDimensions } from '@/lib/image/export';
+import { createExportCanvas, encodeCanvas, exportCanvasImage, getFileExtension, getOutputDimensions } from '@/lib/image/export';
 import { getCropperTransform } from '@/lib/image/transform';
+import { loadImageFile } from '@/lib/image/loading';
+import { createZipBlob, type ZipEntry } from '@/lib/image/zip';
+import { useImageCollection } from '@/hooks/use-image-collection';
 import type { FreeformCropRect } from '@/lib/editor/freeform';
 import { DEFAULT_ADJUSTMENTS, ADJUSTMENT_LIMITS, getAdjustmentCssFilter } from '@/lib/image/adjustments';
 import { calculateFitZoom, clampZoom, DEFAULT_ZOOM, deriveDimension, rotateBy, snapRotation } from '@/lib/editor/interaction';
@@ -25,6 +30,12 @@ type ConfirmationRequest = {
   message: string;
   confirmLabel: string;
   action: () => void;
+};
+
+type BatchExportState = {
+  active: boolean;
+  completed: number;
+  total: number;
 };
 
 export const DEFAULT_EDITOR_SNAPSHOT: EditorSnapshot = {
@@ -72,6 +83,7 @@ export function useCropLabEditor() {
   const resizeStartRef = useRef<EditorSnapshot | null>(null);
   const qualityStartRef = useRef<EditorSnapshot | null>(null);
   const resizeTimerRef = useRef<number | null>(null);
+  const batchAbortRef = useRef<AbortController | null>(null);
 
   const showToast = useCallback((message: string) => {
     setToast({ visible: true, message });
@@ -79,7 +91,11 @@ export function useCropLabEditor() {
   }, []);
 
   const { loadedImage, load, clear } = useImageLoader(showToast);
-  const { entries: historyEntries, currentIndex: historyCurrentIndex, canUndo, canRedo, record: recordHistory, resetHistory, undo, redo, jumpTo } = useEditorHistory(DEFAULT_EDITOR_SNAPSHOT);
+  const collection = useImageCollection(DEFAULT_EDITOR_SNAPSHOT);
+  const { items: imageItems, activeId: activeImageId, activeItem, addFiles, replaceActiveFile, selectImage: selectCollectionImage, updateActiveHistory, removeImage, clearCollection } = collection;
+
+  const { entries: historyEntries, currentIndex: historyCurrentIndex, canUndo, canRedo, record: recordHistory, resetHistory, restoreHistory, undo, redo, jumpTo } = useEditorHistory(DEFAULT_EDITOR_SNAPSHOT);
+  const [batchExport, setBatchExport] = useState<BatchExportState>({ active: false, completed: 0, total: 0 });
   const supportedFormats = useSupportedExportFormats();
 
   const currentSnapshot = useMemo<EditorSnapshot>(() => ({
@@ -149,12 +165,40 @@ export function useCropLabEditor() {
     resetHistory(DEFAULT_EDITOR_SNAPSHOT);
   }, [flushPendingResize, resetHistory]);
 
-  const loadAndReset = useCallback(async (file: File) => {
-    const image = await load(file);
-    if (!image) return;
+  const handleImageInput = useCallback(async (input: ImageInputResult) => {
+    if (input.files.length === 0) return;
+
+    const wasEmpty = imageItems.length === 0;
+    const ids = addFiles(input.files);
+
+    if (!wasEmpty) {
+      showToast(`${input.files.length} image${input.files.length === 1 ? '' : 's'} added to the collection`);
+      return;
+    }
+
+    const [firstFile] = input.files;
+    const image = await load(firstFile);
+    if (!image) {
+      if (ids[0]) removeImage(ids[0]);
+      return;
+    }
+
     resetEditor();
-    showToast('Image loaded successfully');
-  }, [load, resetEditor, showToast]);
+    if (ids[0]) selectCollectionImage(ids[0]);
+    showToast(input.files.length > 1 ? `${input.files.length} images added. The first image is open.` : 'Image loaded successfully');
+  }, [addFiles, imageItems.length, load, removeImage, resetEditor, selectCollectionImage, showToast]);
+
+  const submitImageInput = useImageInput(handleImageInput, showToast);
+
+  const saveCurrentHistory = useCallback(() => {
+    if (!activeImageId) return;
+    updateActiveHistory({ entries: historyEntries, currentIndex: historyCurrentIndex });
+  }, [activeImageId, historyCurrentIndex, historyEntries, updateActiveHistory]);
+
+  useEffect(() => {
+    if (activeImageId) updateActiveHistory({ entries: historyEntries, currentIndex: historyCurrentIndex });
+  }, [activeImageId, historyCurrentIndex, historyEntries, updateActiveHistory]);
+
 
   useEffect(() => () => {
     if (resizeTimerRef.current !== null) window.clearTimeout(resizeTimerRef.current);
@@ -162,16 +206,20 @@ export function useCropLabEditor() {
 
   useEffect(() => {
     const handlePaste = (event: ClipboardEvent) => {
+      const imageFiles: File[] = [];
       for (const item of Array.from(event.clipboardData?.items ?? [])) {
         if (!item.type.includes('image')) continue;
         const file = item.getAsFile();
-        if (file) void loadAndReset(file);
-        break;
+        if (file) imageFiles.push(file);
+      }
+      if (imageFiles.length > 0) {
+        event.preventDefault();
+        void submitImageInput(imageFiles, 'clipboard');
       }
     };
     window.addEventListener('paste', handlePaste);
     return () => window.removeEventListener('paste', handlePaste);
-  }, [loadAndReset]);
+  }, [submitImageInput]);
 
   const performUndo = useCallback(() => {
     flushPendingResize();
@@ -306,28 +354,125 @@ export function useCropLabEditor() {
     });
   }, [applySnapshot, flushPendingResize, recordHistory, showToast]);
 
+  const removeActiveImageNow = useCallback(() => {
+    if (!activeImageId) return;
+    flushPendingResize();
+    const index = imageItems.findIndex((item) => item.id === activeImageId);
+    const nextItem = imageItems.filter((item) => item.id !== activeImageId)[Math.min(index, imageItems.length - 2)] ?? null;
+    if (nextItem) {
+      void (async () => {
+        setIsLoading(true);
+        try {
+          const image = await load(nextItem.file);
+          if (!image) return;
+          const state = nextItem.history;
+          const snapshot = state.entries[state.currentIndex]?.snapshot ?? DEFAULT_EDITOR_SNAPSHOT;
+          applySnapshot(snapshot);
+          restoreHistory(state);
+          removeImage(activeImageId);
+          showToast('Image removed');
+        } finally {
+          setIsLoading(false);
+        }
+      })();
+    } else {
+      removeImage(activeImageId);
+      clear();
+      resetEditor();
+      showToast('Image removed');
+    }
+  }, [activeImageId, applySnapshot, clear, flushPendingResize, imageItems, load, removeImage, resetEditor, restoreHistory, showToast]);
+
   const clearImage = useCallback(() => {
+    if (!activeImageId) return;
     setConfirmation({
-      title: 'Clear current image?',
-      message: 'This will remove the current image and all of its edits from CropLab and return to the upload screen.',
-      confirmLabel: 'Yes, clear image',
+      title: 'Remove current image?',
+      message: imageItems.length > 1
+        ? 'This will remove the current image from the collection. Other images and their edits will remain.'
+        : 'This will remove the current image and return to the CropLab home screen.',
+      confirmLabel: 'Yes, remove image',
+      action: removeActiveImageNow,
+    });
+  }, [activeImageId, imageItems.length, removeActiveImageNow]);
+
+  const removeCollectionImage = useCallback((id: string) => {
+    const item = imageItems.find((candidate) => candidate.id === id);
+    if (!item) return;
+
+    setConfirmation({
+      title: 'Remove image?',
+      message: id === activeImageId
+        ? imageItems.length > 1
+          ? 'This will remove the current image from the collection. Other images and their edits will remain.'
+          : 'This will remove the current image and return to the CropLab home screen.'
+        : `This will remove “${item.file.name}” from the collection.`,
+      confirmLabel: 'Yes, remove image',
       action: () => {
-        clear();
-        resetEditor();
-        showToast('Image cleared');
+        if (id === activeImageId) {
+          removeActiveImageNow();
+          return;
+        }
+        removeImage(id);
+        showToast('Image removed');
       },
     });
-  }, [clear, resetEditor, showToast]);
+  }, [activeImageId, imageItems, removeActiveImageNow, removeImage, showToast]);
 
   const replaceImage = useCallback(() => {
     const openPicker = () => document.getElementById('replace-image-input')?.click();
     setConfirmation({
       title: 'Replace image?',
-      message: 'This will replace the current image and discard all edits attached to it.',
+      message: 'The first selected image will replace the current image and discard its edits. Any additional selected images will be added to the collection.',
       confirmLabel: 'Yes, replace',
       action: openPicker,
     });
   }, []);
+
+  const handleReplaceInput = useCallback(async (input: ImageInputResult) => {
+    const [firstFile, ...additionalFiles] = input.files;
+    if (!firstFile || !activeImageId) return;
+
+    flushPendingResize();
+    setIsLoading(true);
+    try {
+      const image = await load(firstFile);
+      if (!image) return;
+      replaceActiveFile(firstFile);
+      if (additionalFiles.length > 0) addFiles(additionalFiles);
+      resetEditor();
+      showToast(additionalFiles.length > 0
+        ? `Image replaced and ${additionalFiles.length} image${additionalFiles.length === 1 ? '' : 's'} added`
+        : 'Image replaced');
+    } finally {
+      setIsLoading(false);
+    }
+  }, [activeImageId, addFiles, flushPendingResize, load, replaceActiveFile, resetEditor, showToast]);
+
+  const submitReplaceInput = useImageInput(handleReplaceInput, showToast);
+
+  const switchImage = useCallback(async (id: string) => {
+    if (!id || id === activeImageId || isLoading) return;
+    const target = imageItems.find((item) => item.id === id);
+    if (!target) return;
+
+    flushPendingResize();
+    saveCurrentHistory();
+    setIsLoading(true);
+    try {
+      const image = await load(target.file);
+      if (!image) return;
+      const state = target.history;
+      const snapshot = state.entries[state.currentIndex]?.snapshot ?? DEFAULT_EDITOR_SNAPSHOT;
+      applySnapshot(snapshot);
+      restoreHistory(state);
+      selectCollectionImage(id);
+      setIsExportOpen(false);
+      setIsHistoryOpen(false);
+      setMobilePanel(null);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [activeImageId, applySnapshot, flushPendingResize, imageItems, isLoading, load, restoreHistory, saveCurrentHistory, selectCollectionImage]);
 
   const goHome = useCallback(() => {
     if (!loadedImage) {
@@ -340,12 +485,13 @@ export function useCropLabEditor() {
       confirmLabel: 'Yes, go home',
       action: () => {
         clear();
+        clearCollection();
         resetEditor();
         window.scrollTo({ top: 0, behavior: 'smooth' });
         showToast('Returned to home');
       },
     });
-  }, [clear, loadedImage, resetEditor, showToast]);
+  }, [clear, clearCollection, loadedImage, resetEditor, showToast]);
 
   const confirmAction = useCallback(() => {
     const action = confirmation?.action;
@@ -426,6 +572,85 @@ export function useCropLabEditor() {
     showToast('Adjustments reset');
   }, [adjustments, currentSnapshot, flushPendingResize, recordHistory, showToast]);
 
+  const handleBatchExport = useCallback(async () => {
+    if (imageItems.length === 0 || batchExport.active) return;
+
+    flushPendingResize();
+    saveCurrentHistory();
+    const controller = new AbortController();
+    batchAbortRef.current = controller;
+    setBatchExport({ active: true, completed: 0, total: imageItems.length });
+    setIsLoading(true);
+
+    try {
+      const entries: ZipEntry[] = [];
+      const usedNames = new Map<string, number>();
+
+      for (let index = 0; index < imageItems.length; index += 1) {
+        if (controller.signal.aborted) throw new DOMException('Batch export cancelled', 'AbortError');
+        const item = imageItems[index];
+        const state = item.id === activeImageId
+          ? { entries: historyEntries, currentIndex: historyCurrentIndex }
+          : item.history;
+        const snapshot = state.entries[state.currentIndex]?.snapshot ?? DEFAULT_EDITOR_SNAPSHOT;
+        const loaded = await loadImageFile(item.file);
+
+        try {
+          const crop = snapshot.cropArea ?? { x: 0, y: 0, width: loaded.element.naturalWidth, height: loaded.element.naturalHeight };
+          const blob = await exportCanvasImage(
+            loaded.element,
+            crop,
+            snapshot.cropState.transform,
+            {
+              format: snapshot.format,
+              quality: snapshot.quality,
+              width: snapshot.width,
+              height: snapshot.height,
+              lockAspectRatio: snapshot.lockAspectRatio,
+              backgroundColor: snapshot.backgroundColor,
+              adjustments: snapshot.adjustments,
+            },
+          );
+          const extension = getFileExtension(snapshot.format);
+          const base = item.file.name.replace(/\.[^.]+$/, '') || `image-${index + 1}`;
+          const count = (usedNames.get(base) ?? 0) + 1;
+          usedNames.set(base, count);
+          const name = count === 1 ? `${base}.${extension}` : `${base}-${count}.${extension}`;
+          entries.push({ name, data: new Uint8Array(await blob.arrayBuffer()) });
+        } finally {
+          URL.revokeObjectURL(loaded.src);
+        }
+
+        setBatchExport({ active: true, completed: index + 1, total: imageItems.length });
+        await nextFrame();
+      }
+
+      const zip = createZipBlob(entries);
+      const url = URL.createObjectURL(zip);
+      const anchor = document.createElement('a');
+      anchor.href = url;
+      anchor.download = `croplab-batch-${Date.now()}.zip`;
+      anchor.click();
+      window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+      showToast(`${entries.length} images exported as ZIP`);
+    } catch (error) {
+      if (error instanceof DOMException && error.name === 'AbortError') {
+        showToast('Batch export cancelled');
+      } else {
+        console.error('Batch export error:', error);
+        showToast(error instanceof Error ? error.message : 'Failed to export batch');
+      }
+    } finally {
+      batchAbortRef.current = null;
+      setBatchExport({ active: false, completed: 0, total: 0 });
+      setIsLoading(false);
+    }
+  }, [activeImageId, batchExport.active, flushPendingResize, historyCurrentIndex, historyEntries, imageItems, saveCurrentHistory, showToast]);
+
+  const cancelBatchExport = useCallback(() => {
+    batchAbortRef.current?.abort();
+  }, []);
+
   const handleDownload = useCallback(async () => {
     flushPendingResize();
     if (!loadedImage || !croppedAreaPixels) {
@@ -468,8 +693,8 @@ export function useCropLabEditor() {
 
   return {
     theme, setTheme, activeTool, setActiveTool, mobilePanel, setMobilePanel, toast, isLoading,
-    loadedImage, loadAndReset, clear, cropState, croppedAreaPixels, freeCropRect, selectedAspect,
-    exportFormat, exportQuality, customWidth, customHeight, lockAspectRatio, backgroundColor, adjustments,
+    loadedImage, submitImageInput, submitReplaceInput, imageItems, activeImageId, activeItem, switchImage, handleBatchExport, cancelBatchExport, batchExport, removeCollectionImage, clearCollection, clear, cropState, croppedAreaPixels, freeCropRect, selectedAspect,
+    exportFormat, exportQuality, customWidth, customHeight, lockAspectRatio, backgroundColor, adjustments, exportSettings,
     downloadStatus, isHistoryOpen, setIsHistoryOpen, isExportOpen, setIsExportOpen, isShortcutGuideOpen,
     setIsShortcutGuideOpen, confirmation, confirmAction, cancelConfirmation, historyEntries,
     historyCurrentIndex, canUndo, canRedo, supportedFormats, preview, outputDimensions, visibleExportStatus,
@@ -477,7 +702,7 @@ export function useCropLabEditor() {
     resetRotation, resetEdits, replaceImage, clearImage, performUndo, performRedo, handleZoom, commitZoomPreset,
     zoomIn, zoomOut, resetZoom, handleRotation, beginCropInteraction, beginRotationInteraction, endInteraction,
     handleFreeformCropChange, handleCropPositionChange, handleCropAreaChange, handleFit, updateFitContainerSize,
-    handleHistorySelect, handleFormatChange, handleQualityChange, handleQualityInteractionStart,
+    handleHistorySelect, handleFormatChange, handleReplaceInput, handleQualityChange, handleQualityInteractionStart,
     handleQualityCommit, handleBackgroundChange, adjustmentCssFilter, handleAdjustmentChange, handleAdjustmentCommit, resetAdjustments, handleDownload, goHome, openImage,
   };
 }

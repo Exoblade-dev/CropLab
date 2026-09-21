@@ -10,9 +10,9 @@ const exportPanelTsx = readFileSync(new URL('../src/components/ExportPanel.tsx',
 const mobileTsx = readFileSync(new URL('../src/components/MobileEditorControls.tsx', import.meta.url), 'utf8');
 
 describe('v2 edit workspace layout', () => {
-  it('uses a two-column editor workspace and keeps export out of the permanent grid', () => {
+  it('uses the editor workspace and keeps export out of the permanent grid', () => {
     expect(appCss).toMatch(
-      /\.workspace-grid\s*\{[^}]*grid-template-columns:\s*minmax\(330px,\s*360px\)\s+minmax\(0,\s*1fr\);/s,
+      /\.workspace-grid\s*\{[^}]*grid-template-columns:\s*minmax\(330px,\s*360px\)\s+minmax\(0,\s*1fr\)\s+112px;/s,
     );
     expect(appCss).not.toMatch(/grid-template-columns:[^;]*285px/);
     expect(appTsx).not.toMatch(/right-workspace-column/);
@@ -68,6 +68,8 @@ describe('v2 edit workspace layout', () => {
     expect(exportPanelTsx).toMatch(/role="dialog"/);
     expect(exportPanelTsx).toMatch(/className="export-drawer-body"/);
     expect(exportPanelTsx).toMatch(/className="primary-export-button"/);
+    expect(exportPanelTsx).toMatch(/Export current image/);
+    expect(exportPanelTsx).toMatch(/Export full batch as ZIP/);
     expect(appCss).toMatch(/\.export-overlay\s*\{[^}]*position:\s*fixed;[^}]*inset:\s*0;/s);
     expect(appCss).toMatch(/\.export-drawer\s*\{[^}]*grid-template-rows:\s*auto\s+minmax\(0,\s*1fr\)\s+auto;/s);
     expect(appCss).not.toMatch(/\.export-dialog-backdrop\s*\{/);

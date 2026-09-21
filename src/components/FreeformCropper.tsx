@@ -220,6 +220,33 @@ export function FreeformCropper({
     onInteractionEnd();
   }, [onInteractionEnd]);
 
+
+  const handleKeyboardResize = useCallback((event: React.KeyboardEvent<HTMLButtonElement>, handle: ResizeHandle) => {
+    if (!cropRect) return;
+    const step = event.shiftKey ? 10 : 1;
+    let dx = 0;
+    let dy = 0;
+    if (event.key === 'ArrowLeft') dx = -step;
+    if (event.key === 'ArrowRight') dx = step;
+    if (event.key === 'ArrowUp') dy = -step;
+    if (event.key === 'ArrowDown') dy = step;
+    if (dx === 0 && dy === 0) return;
+    event.preventDefault();
+    event.stopPropagation();
+    onInteractionStart();
+    const next = resizeFreeformCropRect(
+      cropRect,
+      handle,
+      dx,
+      dy,
+      geometry.imageBounds,
+      Math.min(minimumScreenSize, geometry.imageBounds.width),
+      Math.min(minimumScreenSize, geometry.imageBounds.height),
+    );
+    emitRect(next);
+    onInteractionEnd();
+  }, [cropRect, emitRect, geometry.imageBounds, minimumScreenSize, onInteractionEnd, onInteractionStart]);
+
   const imageStyle = useMemo(() => ({
     width: `${previewWidth * geometry.displayScale}px`,
     height: `${previewHeight * geometry.displayScale}px`,
@@ -272,6 +299,8 @@ export function FreeformCropper({
               title={`Resize from ${HANDLE_LABELS[handle]}`}
               style={{ cursor: HANDLE_CURSORS[handle] }}
               onPointerDown={(event) => handlePointerDown(event, handle)}
+              onKeyDown={(event) => handleKeyboardResize(event, handle)}
+              aria-keyshortcuts="ArrowUp ArrowDown ArrowLeft ArrowRight Shift+ArrowUp Shift+ArrowDown Shift+ArrowLeft Shift+ArrowRight"
             />
           ))}
         </div>

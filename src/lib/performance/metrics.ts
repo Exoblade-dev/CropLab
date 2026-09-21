@@ -11,8 +11,17 @@ export type LongTaskMetric = {
   startTime: number;
 };
 
+export type PerformanceSummary = {
+  name: string;
+  count: number;
+  totalMs: number;
+  averageMs: number;
+  maxMs: number;
+};
+
 export type CropLabPerformanceSnapshot = {
   measures: PerformanceMetric[];
+  summaries: PerformanceSummary[];
   longTasks: LongTaskMetric[];
   longTaskCount: number;
   longTaskTotalMs: number;
@@ -25,6 +34,8 @@ const PERFORMANCE_STORAGE_KEY = 'croplab-performance';
 
 let longTasks: LongTaskMetric[] = [];
 let observerStarted = false;
+let diagnosticsEnabled = false;
+let observer: PerformanceObserver | null = null;
 
 function hasPerformanceApi(): boolean {
   return typeof performance !== 'undefined' && typeof performance.mark === 'function' && typeof performance.measure === 'function';
@@ -34,7 +45,12 @@ function isBrowser(): boolean {
   return typeof window !== 'undefined';
 }
 
-export function isPerformanceDiagnosticsEnabled(): boolean {
+function shouldMeasure(): boolean {
+  if (!hasPerformanceApi()) return false;
+  return !isBrowser() || isPerformanceDiagnosticsEnabled();
+}
+
+function readPerformanceDiagnosticsEnabled(): boolean {
   if (!isBrowser()) return false;
   const params = new URLSearchParams(window.location.search);
   if (params.get(PERFORMANCE_FLAG) === '1') return true;
@@ -45,14 +61,23 @@ export function isPerformanceDiagnosticsEnabled(): boolean {
   }
 }
 
+if (isBrowser()) diagnosticsEnabled = readPerformanceDiagnosticsEnabled();
+
+export function isPerformanceDiagnosticsEnabled(): boolean {
+  return diagnosticsEnabled;
+}
+
 export function setPerformanceDiagnosticsEnabled(enabled: boolean): void {
   if (!isBrowser()) return;
+  diagnosticsEnabled = enabled;
   try {
     if (enabled) window.localStorage.setItem(PERFORMANCE_STORAGE_KEY, '1');
     else window.localStorage.removeItem(PERFORMANCE_STORAGE_KEY);
   } catch {
     // Diagnostics remain available through the Performance API even if storage is unavailable.
   }
+  if (enabled) startLongTaskObserver();
+  else stopLongTaskObserver();
 }
 
 function createMarkName(name: string, phase: 'start' | 'end'): string {
@@ -77,7 +102,7 @@ function safeMeasure(name: string, startMark: string, endMark: string, detail: P
 }
 
 export function measureSync<T>(name: string, callback: () => T, detail?: PerformanceDetail): T {
-  if (!hasPerformanceApi()) return callback();
+  if (!shouldMeasure()) return callback();
 
   const start = createMarkName(name, 'start');
   const end = createMarkName(name, 'end');
@@ -91,7 +116,7 @@ export function measureSync<T>(name: string, callback: () => T, detail?: Perform
 }
 
 export async function measureAsync<T>(name: string, callback: () => Promise<T>, detail?: PerformanceDetail): Promise<T> {
-  if (!hasPerformanceApi()) return callback();
+  if (!shouldMeasure()) return callback();
 
   const start = createMarkName(name, 'start');
   const end = createMarkName(name, 'end');
@@ -119,9 +144,24 @@ export function getPerformanceMeasures(): PerformanceMetric[] {
     });
 }
 
+export function summarizePerformanceMeasures(measures = getPerformanceMeasures()): PerformanceSummary[] {
+  const groups = new Map<string, PerformanceSummary>();
+  for (const measure of measures) {
+    const current = groups.get(measure.name) ?? { name: measure.name, count: 0, totalMs: 0, averageMs: 0, maxMs: 0 };
+    current.count += 1;
+    current.totalMs += measure.duration;
+    current.maxMs = Math.max(current.maxMs, measure.duration);
+    current.averageMs = current.totalMs / current.count;
+    groups.set(measure.name, current);
+  }
+  return [...groups.values()].sort((a, b) => b.totalMs - a.totalMs);
+}
+
 export function getPerformanceSnapshot(): CropLabPerformanceSnapshot {
+  const measures = getPerformanceMeasures();
   return {
-    measures: getPerformanceMeasures(),
+    measures,
+    summaries: summarizePerformanceMeasures(measures),
     longTasks: [...longTasks],
     longTaskCount: longTasks.length,
     longTaskTotalMs: longTasks.reduce((total, task) => total + task.duration, 0),
@@ -143,7 +183,7 @@ function startLongTaskObserver(): void {
   if (!PerformanceObserver.supportedEntryTypes?.includes('longtask')) return;
 
   observerStarted = true;
-  const observer = new PerformanceObserver((list) => {
+  observer = new PerformanceObserver((list) => {
     for (const entry of list.getEntries()) {
       if (entry.duration < LONG_TASK_THRESHOLD_MS) continue;
       longTasks.push({
@@ -154,6 +194,12 @@ function startLongTaskObserver(): void {
   });
 
   observer.observe({ type: 'longtask', buffered: true });
+}
+
+function stopLongTaskObserver(): void {
+  observer?.disconnect();
+  observer = null;
+  observerStarted = false;
 }
 
 if (isPerformanceDiagnosticsEnabled()) {

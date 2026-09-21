@@ -1,5 +1,6 @@
 import { validateCanvasDimensions, validateImageDimensions, validateImageFile, type InputImageFormat } from './validation';
 import type { LoadedImage } from '@/types/editor';
+import { readImageMetadata } from './metadata';
 import { getPreviewDimensions } from '@/lib/image/preview';
 import { measureAsync, measureSync } from '@/lib/performance/metrics';
 
@@ -26,6 +27,11 @@ async function loadImageFileInternal(file: File): Promise<LoadedImage> {
     if (dimensions.valid === false) throw new Error(dimensions.message);
 
     const format: InputImageFormat = validation.format ?? 'png';
+  const metadata = await measureAsync(
+    'croplab.image.metadata',
+    () => readImageMetadata(file, format),
+    { fileBytes: file.size, format },
+  );
     if (format === 'gif') {
       const staticImage = await measureAsync(
         'croplab.image.gif-first-frame',
@@ -38,10 +44,10 @@ async function loadImageFileInternal(file: File): Promise<LoadedImage> {
       );
 
       URL.revokeObjectURL(src);
-      return buildLoadedImage(staticImage.src, staticImage.element, file.size, format);
+      return buildLoadedImage(staticImage.src, staticImage.element, file.size, format, metadata);
     }
 
-    return buildLoadedImage(src, element, file.size, format);
+    return buildLoadedImage(src, element, file.size, format, metadata);
   } catch (error) {
     URL.revokeObjectURL(src);
     throw error instanceof Error ? error : new Error('Failed to load image');
@@ -53,6 +59,7 @@ async function buildLoadedImage(
   element: HTMLImageElement,
   fileSize: number,
   format: InputImageFormat,
+  metadata: LoadedImage['metadata'],
 ): Promise<LoadedImage> {
   const preview = await createPreviewSource(element);
 
@@ -65,6 +72,7 @@ async function buildLoadedImage(
     element,
     fileSize,
     format,
+    metadata,
     previewScaleX: preview.scaleX,
     previewScaleY: preview.scaleY,
     previewWidth: preview.width,

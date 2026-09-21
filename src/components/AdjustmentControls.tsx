@@ -42,7 +42,7 @@ export function AdjustmentControls({ adjustments, isLoading, compact = false, on
               step={control.step}
               value={value}
               disabled={isLoading}
-              aria-label={`${control.label}, ${display}${control.unit}`}
+              aria-label={control.label} aria-valuetext={`${display}${control.unit}`}
               onChange={(event) => onChange(control.key, Number(event.target.value))}
               onMouseUp={() => onCommit(control.key)}
               onTouchEnd={() => onCommit(control.key)}

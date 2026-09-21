@@ -8,6 +8,8 @@ const hookTs = readFileSync(resolve(root, 'hooks/use-croplab-editor.ts'), 'utf8'
 const workspaceTsx = readFileSync(resolve(root, 'components/EditorWorkspace.tsx'), 'utf8');
 const adjustmentTsx = readFileSync(resolve(root, 'components/AdjustmentControls.tsx'), 'utf8');
 const adjustmentLibTs = readFileSync(resolve(root, 'lib/image/adjustments.ts'), 'utf8');
+const uploadTsx = readFileSync(resolve(root, 'components/UploadScreen.tsx'), 'utf8');
+const inputTs = readFileSync(resolve(root, 'lib/image/input.ts'), 'utf8');
 
 describe('editor architecture', () => {
   it('keeps App as an orchestration layer', () => {
@@ -24,6 +26,15 @@ describe('editor architecture', () => {
     expect(hookTs).toMatch(/useExportPreview/);
     expect(hookTs).toMatch(/useImageLoader/);
     expect(hookTs).toMatch(/handleDownload/);
+  });
+
+  it('keeps image input normalized before the editor load boundary', () => {
+    expect(hookTs).toMatch(/useImageInput/);
+    expect(hookTs).toMatch(/submitImageInput/);
+    expect(uploadTsx).toMatch(/multiple/);
+    expect(inputTs).toMatch(/normalizeImageInput/);
+    expect(inputTs).toMatch(/validateImageFile/);
+    expect(inputTs).toMatch(/picker.*drop.*clipboard|picker.*clipboard/);
   });
 
   it('keeps deterministic image adjustments in the editor pipeline', () => {

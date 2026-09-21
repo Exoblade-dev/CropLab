@@ -12,18 +12,23 @@ The editor performs normal image processing in the browser. Images are loaded wi
 
 ## Current Status
 
-**v1.x final baseline**
+**v1.15.0 — Phase 9 active**
 
-CropLab's v1.x cycle is complete and frozen as the stable foundation for future v2 development.
+CropLab now has a stable local editor foundation plus a browser-local image collection and batch export layer. The active editing workflow remains independent: an image can be cropped, transformed, adjusted, previewed, and exported individually, while multiple images can also be collected and exported as a ZIP.
 
-The final v1.x implementation focuses on a reliable core editor rather than a large collection of unfinished tools. The currently active editing workflow is:
+Current capabilities include:
 
-1. **Crop** — choose a fixed aspect ratio or use Freeform crop.
-2. **Transform** — rotate, flip, and zoom from the persistent editor controls.
-3. **Resize** — set the final output width and height in pixels.
-4. **Export** — choose PNG, JPEG, or WebP, configure quality where supported, inspect the final output, and download it.
-
-Additional capabilities such as compression workflows, image adjustments, presets, background removal, OCR, and batch processing are intentionally reserved for later development.
+1. **Crop** — fixed aspect ratios or Freeform crop.
+2. **Transform** — rotate, flip, zoom, and fit.
+3. **Adjust** — brightness, contrast, saturation, exposure, sharpen, and blur.
+4. **Preview** — interactive final-output inspection with Before/After comparison.
+5. **Export** — PNG, JPEG, or WebP with format-aware quality/background handling.
+6. **Collection** — multiple local images with per-image editing state and thumbnail switching.
+7. **Batch export** — sequential full-quality processing into a browser-generated ZIP archive.
+8. **Image information** — source dimensions, file size, metadata blocks, and common JPEG EXIF fields.
+9. **Metadata policy** — Canvas exports explicitly remove source metadata rather than claiming preservation.
+10. **Accessibility** — keyboard-operable crop handles, dialog focus management, screen-reader labels, visible focus states, and reduced-motion support.
+11. **Performance diagnostics** — opt-in real-browser export benchmarks, timing breakdowns, and long-task observation.
 
 ---
 
@@ -34,8 +39,11 @@ Additional capabilities such as compression workflows, image adjustments, preset
 - File picker upload.
 - Drag-and-drop image import.
 - Clipboard image paste.
-- Replace the current image through the editor.
-- Clear the current image and return to the upload surface.
+- Add and remove images through the collection rail.
+- Add multiple images to a local collection.
+- Switch between images without losing their edits.
+- Clear the current image or return to the upload surface.
+- Export the current collection as a ZIP archive.
 - Explicit confirmation before destructive replace/clear actions.
 - Image decoding before the file enters the editor.
 
@@ -79,8 +87,6 @@ Available presets:
 - 1:1
 - 4:3
 - 3:4
-- 3:2
-- 2:3
 - 16:9
 - 9:16
 
@@ -384,7 +390,9 @@ Performance instrumentation covers:
 - Export canvas drawing.
 - Browser encoding.
 - Total export timing.
+- Image metadata scanning.
 - Optional browser long-task observation.
+- Opt-in interactive/full export benchmark runs with aggregated timing summaries.
 
 Performance diagnostics can be enabled with:
 
@@ -398,7 +406,7 @@ or through the local-storage flag:
 croplab-performance = 1
 ```
 
-The v1.x performance work deliberately does **not** introduce Workers or OffscreenCanvas. The large-image pass instead reduces interactive raster workload through a capped working preview while retaining the original source for export.
+The v1.x performance work deliberately does **not** introduce Workers or OffscreenCanvas. The large-image pass instead reduces interactive raster workload through a capped working preview while retaining the original source for export. Phase 9 adds measurement and benchmark visibility without changing the browser-local processing architecture.
 
 The large-image stress target is:
 
@@ -500,6 +508,9 @@ Current test areas include:
 - Zoom and rotation normalization.
 - Cropper transform preservation.
 - Export format metadata.
+- Source image information and metadata detection.
+- JPEG EXIF field parsing and metadata-block detection.
+- Explicit Canvas export metadata policy.
 - Output dimension derivation.
 - Encoded size-reduction calculations.
 - Image signature detection.
@@ -554,32 +565,20 @@ The package manifest currently targets Next.js 16.3.x, React 19.2.x, TypeScript 
 
 ---
 
-## Intentional v1.x boundaries
+## Intentional boundaries
 
-The final v1.x release deliberately does **not** pretend that unfinished capabilities are complete.
+CropLab keeps capabilities that are not yet implemented out of the active editor surface. The current batch layer deliberately does not include:
 
-The following are visible as future capabilities but are not active editing tools:
-
-- Compress
-- Adjust
-- Presets
-- Background Removal
-- OCR / Image to Text
-- Batch Processing
-
-The following are also outside the v1.x export scope:
-
+- Metadata editing or metadata rewriting.
+- GPS coordinate display or metadata preservation.
 - PDF export.
 - AVIF export.
 - Animated GIF/APNG export.
 - Server-side encoding.
 - Target-file-size compression.
-- Batch export.
 - Advanced encoder controls.
 
-These boundaries keep the v1.x editor focused on a reliable local crop/transform/resize/export workflow.
-
----
+Batch export is browser-local and uses the same established Canvas export pipeline as individual downloads.
 
 ## Version history
 
@@ -596,6 +595,12 @@ The repository keeps a consolidated record of the v1.x development cycle in `ver
 | **v1.7** | History, interaction, and export workspace |
 | **v1.8** | Mobile interaction and accessibility |
 | **v1.9** | Performance architecture, large-image handling, export stabilization, and final v1.x refinement |
+| **v1.10–v1.10.3** | Interactive export preview and Before/After inspection |
+| **v1.11.0** | Unified multi-file input foundation |
+| **v1.12.0** | Image collection, thumbnail switching, and batch ZIP export |
+| **v1.13.0** | Metadata and image information |
+| **v1.14.0** | Accessibility and keyboard interaction hardening |
+| **v1.15.0** | Performance benchmarking, timing aggregation, and export diagnostics |
 
 See the individual Markdown files in `version-patch-updates/` for the detailed implementation record of each release.
 
@@ -609,24 +614,21 @@ It is generated build metadata rather than application source code. If the proje
 
 ---
 
-## v1.x freeze
+## Current baseline
 
-CropLab v1.x is intentionally treated as a stable baseline.
+CropLab's current baseline is the Phase 9 collection-aware editor with accessibility hardening and performance diagnostics. The objective remains a dependable browser-local image editor rather than a broad cloud service.
 
-The objective of the completed cycle was not to build every possible image-editing feature. It was to establish a dependable local editor with:
+The foundation now includes:
 
-- Clear editing workflow.
+- Clear independent editing capabilities.
 - Real crop and Freeform interactions.
-- Persistent transforms.
-- Exact resize controls.
-- Format-aware export.
-- Real encoded-size estimation.
-- Live export preview.
-- Snapshot history.
-- Large-image safeguards.
-- Mobile interaction.
-- Accessibility support.
-- Performance diagnostics.
-- Browser-local processing.
+- Persistent transforms and exact resize controls.
+- Deterministic image adjustments.
+- Format-aware export and interactive final-output preview.
+- Snapshot history per image.
+- Large-image safeguards and performance diagnostics.
+- Multi-file input and browser-local image collection.
+- Per-image editing state and thumbnail switching.
+- Sequential batch processing and ZIP export.
 
-Future v2 work should build on this baseline rather than continuing to expand v1.x incrementally.
+Future phases should build on this foundation without moving backend processing or server uploads into the local editing path.
