@@ -28,6 +28,8 @@ export function useExportPreview({ image, crop, transform, settings }: Params) {
         transform.rotation, transform.flipX, transform.flipY,
         settings.format, settings.quality, settings.width, settings.height,
         settings.lockAspectRatio, settings.backgroundColor,
+        settings.adjustments.brightness, settings.adjustments.contrast, settings.adjustments.saturation,
+        settings.adjustments.exposure, settings.adjustments.sharpen, settings.adjustments.blur,
       ].join('|')
     : '';
 

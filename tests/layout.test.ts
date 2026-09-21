@@ -26,7 +26,7 @@ describe('v2 edit workspace layout', () => {
     expect(sidebarTsx).toMatch(/className="edit-rail"/);
     expect(sidebarTsx).toMatch(/className="edit-rail-tools"/);
     expect(sidebarTsx).toMatch(/className="edit-inspector"/);
-    expect(sidebarTsx).toMatch(/activeTools[\s\S]*Crop[\s\S]*Resize/);
+    expect(sidebarTsx).toMatch(/activeTools[\s\S]*Crop[\s\S]*Resize[\s\S]*Adjust/);
     expect(sidebarTsx).not.toMatch(/futureTools|coming soon|More tools/);
     expect(appCss).toMatch(
       /\.edit-panel\s*\{[^}]*display:\s*grid;[^}]*grid-template-columns:\s*78px\s+minmax\(0,\s*1fr\);/s,
@@ -80,7 +80,7 @@ describe('v2 edit workspace layout', () => {
     expect(mobileTsx).toMatch(/onClick=\{onExport\}/);
     expect(mobileTsx).toMatch(/<span>Export<\/span>/);
     expect(mobileTsx).not.toMatch(/type Panel = EditorTool \| 'export'/);
-    expect(appCss).toMatch(/\.mobile-bottom-bar\s*\{[^}]*grid-template-columns:\s*repeat\(4,1fr\);/s);
+    expect(appCss).toMatch(/\.mobile-bottom-bar\s*\{[^}]*grid-template-columns:\s*repeat\(5,1fr\);/s);
   });
 
   it('preserves constrained-height and responsive workspace behavior', () => {

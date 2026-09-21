@@ -12,6 +12,7 @@ import { DEFAULT_CROP_STATE } from '@/lib/image/constants';
 import { createExportCanvas, encodeCanvas, getFileExtension, getOutputDimensions } from '@/lib/image/export';
 import { getCropperTransform } from '@/lib/image/transform';
 import type { FreeformCropRect } from '@/lib/editor/freeform';
+import { DEFAULT_ADJUSTMENTS, ADJUSTMENT_LIMITS, getAdjustmentCssFilter } from '@/lib/image/adjustments';
 import { calculateFitZoom, clampZoom, DEFAULT_ZOOM, deriveDimension, rotateBy, snapRotation } from '@/lib/editor/interaction';
 import type { CropState, EditorSnapshot, ExportSettings, ExportStatus, ImageFormat } from '@/types/editor';
 import type { EditorTool } from '@/components/EditorSidebar';
@@ -37,6 +38,7 @@ export const DEFAULT_EDITOR_SNAPSHOT: EditorSnapshot = {
   format: 'png',
   quality: 0.9,
   backgroundColor: DEFAULT_BACKGROUND,
+  adjustments: DEFAULT_ADJUSTMENTS,
 };
 
 function nextFrame(): Promise<void> {
@@ -59,6 +61,7 @@ export function useCropLabEditor() {
   const [customHeight, setCustomHeight] = useState<number | null>(null);
   const [lockAspectRatio, setLockAspectRatio] = useState(true);
   const [backgroundColor, setBackgroundColor] = useState(DEFAULT_BACKGROUND);
+  const [adjustments, setAdjustments] = useState(DEFAULT_ADJUSTMENTS);
   const [fitContainerSize, setFitContainerSize] = useState({ width: 0, height: 0 });
   const [downloadStatus, setDownloadStatus] = useState<ExportStatus>('idle');
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
@@ -87,10 +90,11 @@ export function useCropLabEditor() {
     format: exportFormat,
     quality: exportQuality,
     backgroundColor,
+    adjustments,
     cropArea: croppedAreaPixels,
     freeCropRect,
     lockAspectRatio,
-  }), [backgroundColor, cropState, croppedAreaPixels, customHeight, customWidth, exportFormat, exportQuality, freeCropRect, lockAspectRatio, selectedAspect]);
+  }), [adjustments, backgroundColor, cropState, croppedAreaPixels, customHeight, customWidth, exportFormat, exportQuality, freeCropRect, lockAspectRatio, selectedAspect]);
 
   const applySnapshot = useCallback((snapshot: EditorSnapshot) => {
     setCropState(snapshot.cropState);
@@ -100,6 +104,7 @@ export function useCropLabEditor() {
     setExportFormat(snapshot.format);
     setExportQuality(snapshot.quality);
     setBackgroundColor(snapshot.backgroundColor);
+    setAdjustments(snapshot.adjustments ?? DEFAULT_ADJUSTMENTS);
     setLockAspectRatio(snapshot.lockAspectRatio);
     setCroppedAreaPixels(snapshot.cropArea);
     setFreeCropRect(snapshot.freeCropRect ?? null);
@@ -137,6 +142,7 @@ export function useCropLabEditor() {
     setExportQuality(0.9);
     setLockAspectRatio(true);
     setBackgroundColor(DEFAULT_BACKGROUND);
+    setAdjustments(DEFAULT_ADJUSTMENTS);
     setDownloadStatus('idle');
     setIsHistoryOpen(false);
     setMobilePanel(null);
@@ -363,7 +369,8 @@ export function useCropLabEditor() {
 
   useKeyboardShortcuts({ onUndo: performUndo, onRedo: performRedo, onZoomIn: zoomIn, onZoomOut: zoomOut, onZoomReset: handleFit, onZoomPreset: commitZoomPreset, onRotate: () => rotate(90), onOpen: openImage, onExport: exportFromShortcut, onEscape: () => { setActiveTool(null); setMobilePanel(null); setIsExportOpen(false); } });
 
-  const exportSettings: ExportSettings = useMemo(() => ({ format: exportFormat, quality: exportQuality, width: customWidth, height: customHeight, lockAspectRatio, backgroundColor }), [backgroundColor, customHeight, customWidth, exportFormat, exportQuality, lockAspectRatio]);
+  const adjustmentCssFilter = useMemo(() => getAdjustmentCssFilter(adjustments), [adjustments]);
+  const exportSettings: ExportSettings = useMemo(() => ({ format: exportFormat, quality: exportQuality, width: customWidth, height: customHeight, lockAspectRatio, backgroundColor, adjustments }), [adjustments, backgroundColor, customHeight, customWidth, exportFormat, exportQuality, lockAspectRatio]);
   const preview = useExportPreview({ image: loadedImage?.element ?? null, crop: croppedAreaPixels, transform: cropState.transform, settings: exportSettings });
   const handleFreeformCropChange = useCallback((rect: FreeformCropRect, area: Area) => { setFreeCropRect(rect); setCroppedAreaPixels(area); }, []);
 
@@ -397,6 +404,27 @@ export function useCropLabEditor() {
     recordHistory({ ...currentSnapshot, backgroundColor: color }, `JPEG background · ${color.toUpperCase()}`);
     setBackgroundColor(color);
   }, [currentSnapshot, recordHistory]);
+
+  const handleAdjustmentChange = useCallback((key: keyof typeof DEFAULT_ADJUSTMENTS, value: number) => {
+    const limits = ADJUSTMENT_LIMITS[key];
+    const nextValue = Math.min(limits.max, Math.max(limits.min, value));
+    setAdjustments((previous) => ({ ...previous, [key]: nextValue }));
+  }, []);
+
+  const handleAdjustmentCommit = useCallback((key: keyof typeof DEFAULT_ADJUSTMENTS) => {
+    flushPendingResize();
+    const nextAdjustments = { ...adjustments };
+    const value = Math.round(nextAdjustments[key] * 10) / 10;
+    recordHistory({ ...currentSnapshot, adjustments: nextAdjustments }, `${key[0].toUpperCase()}${key.slice(1)} · ${value > 0 ? '+' : ''}${value}`);
+  }, [adjustments, currentSnapshot, flushPendingResize, recordHistory]);
+
+  const resetAdjustments = useCallback(() => {
+    flushPendingResize();
+    if (JSON.stringify(adjustments) === JSON.stringify(DEFAULT_ADJUSTMENTS)) return;
+    recordHistory({ ...currentSnapshot, adjustments: DEFAULT_ADJUSTMENTS }, 'Adjustments reset');
+    setAdjustments(DEFAULT_ADJUSTMENTS);
+    showToast('Adjustments reset');
+  }, [adjustments, currentSnapshot, flushPendingResize, recordHistory, showToast]);
 
   const handleDownload = useCallback(async () => {
     flushPendingResize();
@@ -441,7 +469,7 @@ export function useCropLabEditor() {
   return {
     theme, setTheme, activeTool, setActiveTool, mobilePanel, setMobilePanel, toast, isLoading,
     loadedImage, loadAndReset, clear, cropState, croppedAreaPixels, freeCropRect, selectedAspect,
-    exportFormat, exportQuality, customWidth, customHeight, lockAspectRatio, backgroundColor,
+    exportFormat, exportQuality, customWidth, customHeight, lockAspectRatio, backgroundColor, adjustments,
     downloadStatus, isHistoryOpen, setIsHistoryOpen, isExportOpen, setIsExportOpen, isShortcutGuideOpen,
     setIsShortcutGuideOpen, confirmation, confirmAction, cancelConfirmation, historyEntries,
     historyCurrentIndex, canUndo, canRedo, supportedFormats, preview, outputDimensions, visibleExportStatus,
@@ -450,6 +478,6 @@ export function useCropLabEditor() {
     zoomIn, zoomOut, resetZoom, handleRotation, beginCropInteraction, beginRotationInteraction, endInteraction,
     handleFreeformCropChange, handleCropPositionChange, handleCropAreaChange, handleFit, updateFitContainerSize,
     handleHistorySelect, handleFormatChange, handleQualityChange, handleQualityInteractionStart,
-    handleQualityCommit, handleBackgroundChange, handleDownload, goHome, openImage,
+    handleQualityCommit, handleBackgroundChange, adjustmentCssFilter, handleAdjustmentChange, handleAdjustmentCommit, resetAdjustments, handleDownload, goHome, openImage,
   };
 }

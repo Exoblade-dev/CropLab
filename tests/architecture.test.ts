@@ -6,6 +6,8 @@ const root = resolve(process.cwd(), 'src');
 const appTsx = readFileSync(resolve(root, 'App.tsx'), 'utf8');
 const hookTs = readFileSync(resolve(root, 'hooks/use-croplab-editor.ts'), 'utf8');
 const workspaceTsx = readFileSync(resolve(root, 'components/EditorWorkspace.tsx'), 'utf8');
+const adjustmentTsx = readFileSync(resolve(root, 'components/AdjustmentControls.tsx'), 'utf8');
+const adjustmentLibTs = readFileSync(resolve(root, 'lib/image/adjustments.ts'), 'utf8');
 
 describe('editor architecture', () => {
   it('keeps App as an orchestration layer', () => {
@@ -22,6 +24,17 @@ describe('editor architecture', () => {
     expect(hookTs).toMatch(/useExportPreview/);
     expect(hookTs).toMatch(/useImageLoader/);
     expect(hookTs).toMatch(/handleDownload/);
+  });
+
+  it('keeps deterministic image adjustments in the editor pipeline', () => {
+    expect(hookTs).toMatch(/adjustments/);
+    expect(hookTs).toMatch(/handleAdjustmentChange/);
+    expect(workspaceTsx).toMatch(/AdjustmentControls|adjustments/);
+    expect(adjustmentTsx).toMatch(/Brightness/);
+    expect(adjustmentTsx).toMatch(/Sharpen/);
+    expect(adjustmentTsx).toMatch(/Blur/);
+    expect(adjustmentLibTs).toMatch(/applyAdjustments/);
+    expect(adjustmentLibTs).not.toMatch(/fetch\(|XMLHttpRequest|Image\.src\s*=\s*['"]https?:/);
   });
 
   it('keeps the canvas workspace presentation outside App', () => {

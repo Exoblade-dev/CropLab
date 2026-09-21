@@ -3,6 +3,7 @@ import type { InputImageFormat } from '@/lib/image/validation';
 
 export type ImageFormat = 'png' | 'jpeg' | 'webp';
 export type TransformState = { rotation: number; flipX: boolean; flipY: boolean };
+export type AdjustmentState = { brightness: number; contrast: number; saturation: number; exposure: number; sharpen: number; blur: number };
 export type CropState = { crop: Point; zoom: number; transform: TransformState };
 export type FreeformCropRect = { x: number; y: number; width: number; height: number };
 export type AspectRatio = { label: string; value: number | null };
@@ -17,6 +18,7 @@ export type EditorSnapshot = {
   format: ImageFormat;
   quality: number;
   backgroundColor: string;
+  adjustments: AdjustmentState;
 };
 export type EditorHistoryEntry = { id: string; label: string; snapshot: EditorSnapshot };
 export type EditorHistoryState = { entries: EditorHistoryEntry[]; currentIndex: number };
@@ -27,6 +29,7 @@ export type ExportSettings = {
   height: number | null;
   lockAspectRatio: boolean;
   backgroundColor: string;
+  adjustments: AdjustmentState;
 };
 export type LoadedImage = {
   src: string;

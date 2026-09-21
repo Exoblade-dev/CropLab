@@ -11,7 +11,8 @@ import {
   getMinimumFreeformCropPreviewSize,
   resizeFreeformCropRect,
 } from '@/lib/editor/freeform';
-import type { FreeformCropRect, TransformState } from '@/types/editor';
+import type { AdjustmentState, FreeformCropRect, TransformState } from '@/types/editor';
+import { getAdjustmentCssFilter } from '@/lib/image/adjustments';
 
 type ResizeHandle = 'nw' | 'n' | 'ne' | 'w' | 'e' | 'sw' | 's' | 'se';
 
@@ -23,6 +24,7 @@ type Props = {
   previewScaleY: number;
   zoom: number;
   transform: TransformState;
+  adjustments: AdjustmentState;
   cropRect: FreeformCropRect | null;
   onCropRectChange: (rect: FreeformCropRect, area: Area) => void;
   onInteractionStart: () => void;
@@ -64,6 +66,7 @@ export function FreeformCropper({
   previewScaleY,
   zoom,
   transform,
+  adjustments,
   cropRect,
   onCropRectChange,
   onInteractionStart,
@@ -221,7 +224,8 @@ export function FreeformCropper({
     width: `${previewWidth * geometry.displayScale}px`,
     height: `${previewHeight * geometry.displayScale}px`,
     transform: `translate(-50%, -50%) rotate(${transform.rotation}deg) scaleX(${transform.flipX ? -1 : 1}) scaleY(${transform.flipY ? -1 : 1})`,
-  }), [geometry.displayScale, previewHeight, previewWidth, transform.flipX, transform.flipY, transform.rotation]);
+    filter: getAdjustmentCssFilter(adjustments),
+  }), [adjustments, geometry.displayScale, previewHeight, previewWidth, transform.flipX, transform.flipY, transform.rotation]);
 
   return (
     <div

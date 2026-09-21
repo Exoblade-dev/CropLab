@@ -1,8 +1,10 @@
-import { Crop, Lock, RotateCcw, StretchHorizontal, Unlock } from 'lucide-react';
+import { Crop, Lock, RotateCcw, SlidersHorizontal, StretchHorizontal, Unlock } from 'lucide-react';
 import { ASPECT_RATIOS } from '@/lib/image/constants';
 import { AspectRatioIcon } from '@/components/AspectRatioIcon';
+import { AdjustmentControls } from '@/components/AdjustmentControls';
+import type { AdjustmentState } from '@/types/editor';
 
-export type EditorTool = 'crop' | 'resize';
+export type EditorTool = 'crop' | 'resize' | 'adjust';
 type Props = {
   activeTool: EditorTool | null;
   selectedAspect: number | null;
@@ -18,14 +20,19 @@ type Props = {
   onWidthChange: (value: string) => void;
   onHeightChange: (value: string) => void;
   onLockToggle: () => void;
+  adjustments: AdjustmentState;
+  onAdjustmentChange: (key: keyof AdjustmentState, value: number) => void;
+  onAdjustmentCommit: (key: keyof AdjustmentState) => void;
+  onAdjustmentsReset: () => void;
 };
 
 const activeTools = [
   { id: 'crop' as const, label: 'Crop', hint: 'Frame', icon: Crop },
   { id: 'resize' as const, label: 'Resize', hint: 'Scale', icon: StretchHorizontal },
+  { id: 'adjust' as const, label: 'Adjust', hint: 'Tune', icon: SlidersHorizontal },
 ];
 
-export function EditorSidebar({ activeTool, selectedAspect, cropWidth, cropHeight, outputWidth, outputHeight, lockAspectRatio, isLoading, onToolChange, onAspectChange, onCropReset, onWidthChange, onHeightChange, onLockToggle }: Props) {
+export function EditorSidebar({ activeTool, selectedAspect, cropWidth, cropHeight, outputWidth, outputHeight, lockAspectRatio, isLoading, onToolChange, onAspectChange, onCropReset, onWidthChange, onHeightChange, onLockToggle, adjustments, onAdjustmentChange, onAdjustmentCommit, onAdjustmentsReset }: Props) {
   return (
     <aside className="edit-panel" aria-label="Edit workspace">
       <div className="edit-rail">
@@ -63,6 +70,12 @@ export function EditorSidebar({ activeTool, selectedAspect, cropWidth, cropHeigh
                 <div><span>Crop size</span><strong>{cropWidth && cropHeight ? `${Math.round(cropWidth)} × ${Math.round(cropHeight)}` : '—'}</strong></div>
                 <span>px</span>
               </div>
+            </section>
+          )}
+
+          {activeTool === 'adjust' && (
+            <section className="inspector-tool" aria-live="polite">
+              <AdjustmentControls adjustments={adjustments} isLoading={isLoading} onChange={onAdjustmentChange} onCommit={onAdjustmentCommit} onReset={onAdjustmentsReset} />
             </section>
           )}
 

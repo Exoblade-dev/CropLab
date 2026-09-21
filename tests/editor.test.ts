@@ -55,6 +55,7 @@ describe('v1.5 export engine', () => {
     height: null,
     lockAspectRatio: true,
     backgroundColor: '#ffffff',
+    adjustments: { brightness: 0, contrast: 0, saturation: 0, exposure: 0, sharpen: 0, blur: 0 },
   };
 
   it('keeps format metadata honest and extensible', () => {
@@ -76,6 +77,7 @@ describe('v1.5 export engine', () => {
     expect(getSizeReductionPercent(3_800_000, 842_000)).toBe(78);
     expect(getSizeReductionPercent(100_000, 120_000)).toBe(-20);
     expect(getSizeReductionPercent(100_000, 100_000)).toBe(0);
+    expect(settings.adjustments).toEqual({ brightness: 0, contrast: 0, saturation: 0, exposure: 0, sharpen: 0, blur: 0 });
   });
 });
 
@@ -149,6 +151,7 @@ describe('v1.7 history timeline', () => {
     format: 'png',
     quality: 0.9,
     backgroundColor: '#ffffff',
+    adjustments: { brightness: 0, contrast: 0, saturation: 0, exposure: 0, sharpen: 0, blur: 0 },
   });
 
   it('jumps directly to a selected state', async () => {

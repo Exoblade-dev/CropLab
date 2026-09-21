@@ -3,6 +3,7 @@ import type { ExportSettings, ImageFormat, TransformState } from '@/types/editor
 import { getFormatDefinition } from '@/lib/image/formats';
 import { validateCanvasDimensions } from '@/lib/image/validation';
 import { measureAsync, measureSync } from '@/lib/performance/metrics';
+import { applyAdjustments } from '@/lib/image/adjustments';
 
 export function getOutputDimensions(crop: Area, settings: ExportSettings) {
   let width = crop.width;
@@ -107,7 +108,7 @@ export function createExportCanvas(
     },
   );
 
-  return canvas;
+  return applyAdjustments(canvas, settings.adjustments);
 }
 
 export function encodeCanvas(canvas: HTMLCanvasElement, settings: ExportSettings): Promise<Blob> {
