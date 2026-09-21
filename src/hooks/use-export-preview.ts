@@ -45,6 +45,9 @@ export function useExportPreview({ image, crop, transform, settings }: Params) {
   const encodingKeyRef = useRef('');
   const encodingPromiseRef = useRef<Promise<Blob> | null>(null);
   const previewUrlRef = useRef<string | null>(null);
+  const inspectionKeyRef = useRef('');
+  const inspectionBlobRef = useRef<Blob | null>(null);
+  const inspectionPromiseRef = useRef<Promise<Blob | null> | null>(null);
 
   useEffect(() => {
     activeKeyRef.current = previewKey;
@@ -55,6 +58,9 @@ export function useExportPreview({ image, crop, transform, settings }: Params) {
     }
     encodingKeyRef.current = '';
     encodingPromiseRef.current = null;
+    inspectionKeyRef.current = '';
+    inspectionBlobRef.current = null;
+    inspectionPromiseRef.current = null;
 
     if (!image || !crop) return;
 
@@ -122,7 +128,39 @@ export function useExportPreview({ image, crop, transform, settings }: Params) {
     return blobRef.current;
   }, [previewKey]);
 
-  if (!image || !crop) return { key: '', size: null, status: 'idle' as ExportStatus, error: null, url: null, getBlob };
-  if (preview.key !== previewKey) return { key: previewKey, size: null, status: 'preparing' as ExportStatus, error: null, url: null, getBlob };
-  return { ...preview, getBlob };
+  const getInspectionBlob = useCallback(async (): Promise<Blob | null> => {
+    if (!image || !crop || !previewKey || activeKeyRef.current !== previewKey) return null;
+
+    if (inspectionKeyRef.current === previewKey && inspectionBlobRef.current) {
+      return inspectionBlobRef.current;
+    }
+
+    if (inspectionKeyRef.current === previewKey && inspectionPromiseRef.current) {
+      return inspectionPromiseRef.current;
+    }
+
+    inspectionKeyRef.current = previewKey;
+    const promise = (async () => {
+      try {
+        const canvas = createExportCanvas(image, crop, transform, settings);
+        const blob = await encodeCanvas(canvas, settings);
+        if (activeKeyRef.current !== previewKey) return null;
+        inspectionBlobRef.current = blob;
+        return blob;
+      } catch {
+        return null;
+      } finally {
+        if (inspectionKeyRef.current === previewKey) {
+          inspectionPromiseRef.current = null;
+        }
+      }
+    })();
+
+    inspectionPromiseRef.current = promise;
+    return promise;
+  }, [crop, image, previewKey, settings, transform]);
+
+  if (!image || !crop) return { key: '', size: null, status: 'idle' as ExportStatus, error: null, url: null, getBlob, getInspectionBlob };
+  if (preview.key !== previewKey) return { key: previewKey, size: null, status: 'preparing' as ExportStatus, error: null, url: null, getBlob, getInspectionBlob };
+  return { ...preview, getBlob, getInspectionBlob };
 }
