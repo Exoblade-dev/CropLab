@@ -3,6 +3,8 @@ import { describe, expect, it } from 'vitest';
 
 const appCss = readFileSync(new URL('../src/App.css', import.meta.url), 'utf8');
 const appTsx = readFileSync(new URL('../src/App.tsx', import.meta.url), 'utf8');
+const workspaceTsx = readFileSync(new URL('../src/components/EditorWorkspace.tsx', import.meta.url), 'utf8');
+const editorHookTs = readFileSync(new URL('../src/hooks/use-croplab-editor.ts', import.meta.url), 'utf8');
 const sidebarTsx = readFileSync(new URL('../src/components/EditorSidebar.tsx', import.meta.url), 'utf8');
 const exportPanelTsx = readFileSync(new URL('../src/components/ExportPanel.tsx', import.meta.url), 'utf8');
 const mobileTsx = readFileSync(new URL('../src/components/MobileEditorControls.tsx', import.meta.url), 'utf8');
@@ -14,7 +16,9 @@ describe('v2 edit workspace layout', () => {
     );
     expect(appCss).not.toMatch(/grid-template-columns:[^;]*285px/);
     expect(appTsx).not.toMatch(/right-workspace-column/);
-    expect(appTsx).toMatch(/<EditorSidebar[\s\S]*<section className="canvas-workspace"/);
+    expect(appTsx).toMatch(/useCropLabEditor/);
+    expect(appTsx).toMatch(/<EditorWorkspace editor=\{editor\}/);
+    expect(workspaceTsx).toMatch(/<EditorSidebar[\s\S]*<section className="canvas-workspace"/);
   });
 
   it('splits the edit sidebar into a tool rail and contextual inspector', () => {
@@ -23,20 +27,20 @@ describe('v2 edit workspace layout', () => {
     expect(sidebarTsx).toMatch(/className="edit-rail-tools"/);
     expect(sidebarTsx).toMatch(/className="edit-inspector"/);
     expect(sidebarTsx).toMatch(/activeTools[\s\S]*Crop[\s\S]*Resize/);
-    expect(sidebarTsx).toMatch(/futureTools[\s\S]*Batch[\s\S]*Enhance[\s\S]*More/);
+    expect(sidebarTsx).not.toMatch(/futureTools|coming soon|More tools/);
     expect(appCss).toMatch(
       /\.edit-panel\s*\{[^}]*display:\s*grid;[^}]*grid-template-columns:\s*78px\s+minmax\(0,\s*1fr\);/s,
     );
-    expect(appCss).toMatch(/\.edit-inspector\s*\{[^}]*grid-template-rows:\s*minmax\(0,\s*1fr\)\s+auto\s+auto;/s);
+    expect(appCss).toMatch(/\.edit-inspector\s*\{[^}]*grid-template-rows:\s*minmax\(0,\s*1fr\);/s);
   });
 
   it('keeps contextual controls scrollable and makes preview an explicit action', () => {
     expect(sidebarTsx).toMatch(/className="inspector-scroll"/);
     expect(sidebarTsx).not.toMatch(/className="preview-region"/);
     expect(sidebarTsx).not.toMatch(/Live export preview/);
-    expect(appTsx).toMatch(/<ExportPreview[\s\S]*previewUrl=\{preview\.url\}/);
-    expect(appTsx).toMatch(/className="canvas-header-actions-buttons"/);
-    expect(appTsx).toMatch(/Preview/);
+    expect(workspaceTsx).toMatch(/<ExportPreview[\s\S]*previewUrl=\{preview\.url\}/);
+    expect(workspaceTsx).toMatch(/className="canvas-header-actions-buttons"/);
+    expect(workspaceTsx).toMatch(/Preview/);
     expect(appCss).toMatch(/\.inspector-scroll\s*\{[^}]*min-height:\s*0;[^}]*overflow:\s*auto;/s);
     expect(appCss).not.toMatch(/\.preview-region\s*\{/);
     expect(appCss).not.toMatch(/\.tool-preview-stage\s*\{/);
@@ -54,10 +58,11 @@ describe('v2 edit workspace layout', () => {
   });
 
   it('opens export on demand as a right-side drawer instead of reserving workspace space', () => {
-    expect(appTsx).toMatch(/const \[isExportOpen, setIsExportOpen\] = useState\(false\)/);
+    expect(editorHookTs).toMatch(/isExportOpen/);
+    expect(editorHookTs).toMatch(/setIsExportOpen/);
     expect(appTsx).toMatch(/<ExportPanel[\s\S]*open=\{isExportOpen\}/);
-    expect(appTsx).toMatch(/className="canvas-export-button"/);
-    expect(appTsx).toMatch(/setIsExportOpen\(true\)/);
+    expect(workspaceTsx).toMatch(/className="canvas-export-button"/);
+    expect(workspaceTsx).toMatch(/setIsExportOpen\(true\)/);
     expect(exportPanelTsx).toMatch(/className="export-overlay"/);
     expect(exportPanelTsx).toMatch(/className="export-drawer"/);
     expect(exportPanelTsx).toMatch(/role="dialog"/);
@@ -66,10 +71,8 @@ describe('v2 edit workspace layout', () => {
     expect(appCss).toMatch(/\.export-overlay\s*\{[^}]*position:\s*fixed;[^}]*inset:\s*0;/s);
     expect(appCss).toMatch(/\.export-drawer\s*\{[^}]*grid-template-rows:\s*auto\s+minmax\(0,\s*1fr\)\s+auto;/s);
     expect(appCss).not.toMatch(/\.export-dialog-backdrop\s*\{/);
-    expect(exportPanelTsx).toMatch(/Final step/);
-    expect(exportPanelTsx).toMatch(/export-section-kicker\">01/);
-    expect(exportPanelTsx).toMatch(/export-section-kicker\">02/);
-    expect(exportPanelTsx).toMatch(/export-section-kicker\">03/);
+    expect(exportPanelTsx).not.toMatch(/Final step/);
+    expect(exportPanelTsx).not.toMatch(/export-section-kicker[^<]*(?:01|02|03)/s);
   });
 
   it('keeps mobile export on-demand through the shared export action', () => {

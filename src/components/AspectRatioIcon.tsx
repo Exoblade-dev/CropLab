@@ -6,8 +6,6 @@ const RECTANGLES: Record<string, { x: number; y: number; width: number; height: 
   '1:1': { x: 7, y: 7, width: 18, height: 18 },
   '4:3': { x: 4, y: 7, width: 24, height: 18 },
   '3:4': { x: 7, y: 4, width: 18, height: 24 },
-  '3:2': { x: 4, y: 8, width: 24, height: 16 },
-  '2:3': { x: 8, y: 4, width: 16, height: 24 },
   '16:9': { x: 2, y: 8, width: 28, height: 16 },
   '9:16': { x: 8, y: 2, width: 16, height: 28 },
 };

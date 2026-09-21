@@ -1,4 +1,4 @@
-import { Crop, Layers3, Lock, MoreHorizontal, RotateCcw, StretchHorizontal, Unlock, WandSparkles } from 'lucide-react';
+import { Crop, Lock, RotateCcw, StretchHorizontal, Unlock } from 'lucide-react';
 import { ASPECT_RATIOS } from '@/lib/image/constants';
 import { AspectRatioIcon } from '@/components/AspectRatioIcon';
 
@@ -25,12 +25,6 @@ const activeTools = [
   { id: 'resize' as const, label: 'Resize', hint: 'Scale', icon: StretchHorizontal },
 ];
 
-const futureTools = [
-  { label: 'Batch', hint: 'Soon', icon: Layers3 },
-  { label: 'Enhance', hint: 'Soon', icon: WandSparkles },
-  { label: 'More', hint: 'Soon', icon: MoreHorizontal },
-] as const;
-
 export function EditorSidebar({ activeTool, selectedAspect, cropWidth, cropHeight, outputWidth, outputHeight, lockAspectRatio, isLoading, onToolChange, onAspectChange, onCropReset, onWidthChange, onHeightChange, onLockToggle }: Props) {
   return (
     <aside className="edit-panel" aria-label="Edit workspace">
@@ -42,14 +36,6 @@ export function EditorSidebar({ activeTool, selectedAspect, cropWidth, cropHeigh
             <button key={id} type="button" className={`edit-rail-tool ${activeTool === id ? 'active' : ''}`} onClick={() => onToolChange(id)} aria-pressed={activeTool === id} title={`${label} — ${hint}`}>
               <span className="edit-rail-icon"><Icon size={19} /></span>
               <span>{label}</span>
-            </button>
-          ))}
-          <span className="edit-rail-separator" />
-          {futureTools.map(({ label, hint, icon: Icon }) => (
-            <button key={label} type="button" className="edit-rail-tool future" disabled title={`${label} — coming soon`} aria-label={`${label} coming soon`}>
-              <span className="edit-rail-icon"><Icon size={18} /></span>
-              <span>{label}</span>
-              <small>{hint}</small>
             </button>
           ))}
         </nav>
@@ -83,7 +69,7 @@ export function EditorSidebar({ activeTool, selectedAspect, cropWidth, cropHeigh
           {activeTool === 'resize' && (
             <section className="inspector-tool" aria-live="polite">
               <div className="inspector-eyebrow">Resize</div>
-              <div className="inspector-title-row"><div><h2>Set output size</h2><p>Define the exact pixel dimensions of the image you will export.</p></div></div>
+              <div className="inspector-title-row"><div><h2>Set output size</h2><p>Resize changes the exported image dimensions. Zoom only changes how you view the canvas.</p></div></div>
               <div className="resize-dimensions">
                 <div><label htmlFor="resize-width">Width</label><div className="resize-input-wrap"><input id="resize-width" type="number" min="1" value={outputWidth ?? ''} onChange={(event) => onWidthChange(event.target.value)} disabled={isLoading} /><span>px</span></div></div>
                 <span className="resize-times">×</span>
@@ -94,8 +80,6 @@ export function EditorSidebar({ activeTool, selectedAspect, cropWidth, cropHeigh
             </section>
           )}
         </div>
-
-        <button type="button" className="more-tools-footer" disabled aria-label="More tools coming soon"><MoreHorizontal size={16} /><span>More tools</span><small>Coming soon</small></button>
       </div>
     </aside>
   );

@@ -21,8 +21,11 @@ function getFormatLabel(format: ImageFormat) {
 }
 
 export function ExportPreview({ previewUrl, previewStatus, previewSize, outputWidth, outputHeight, format, quality, backgroundColor, disabled = false }: Props) {
-  const [isOpen, setIsOpen] = useState(false);
+  const [openedPreviewUrl, setOpenedPreviewUrl] = useState<string | null>(null);
   const closeButtonRef = useRef<HTMLButtonElement | null>(null);
+
+  const canOpen = Boolean(previewUrl && previewStatus === 'complete' && outputWidth && outputHeight && !disabled);
+  const isOpen = openedPreviewUrl !== null && openedPreviewUrl === previewUrl && canOpen;
 
   useEffect(() => {
     if (!isOpen) return;
@@ -31,7 +34,7 @@ export function ExportPreview({ previewUrl, previewStatus, previewSize, outputWi
     closeButtonRef.current?.focus();
 
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setIsOpen(false);
+      if (event.key === 'Escape') setOpenedPreviewUrl(null);
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => {
@@ -40,11 +43,7 @@ export function ExportPreview({ previewUrl, previewStatus, previewSize, outputWi
     };
   }, [isOpen]);
 
-  useEffect(() => {
-    if (previewStatus !== 'complete') setIsOpen(false);
-  }, [previewStatus]);
 
-  const canOpen = Boolean(previewUrl && previewStatus === 'complete' && outputWidth && outputHeight && !disabled);
   const dimensionLabel = outputWidth && outputHeight ? `${outputWidth} × ${outputHeight} px` : '—';
   const formatLabel = getFormatLabel(format);
 
@@ -53,7 +52,7 @@ export function ExportPreview({ previewUrl, previewStatus, previewSize, outputWi
       <button
         type="button"
         className="canvas-preview-button"
-        onClick={() => setIsOpen(true)}
+        onClick={() => { if (previewUrl) setOpenedPreviewUrl(previewUrl); }}
         disabled={!canOpen}
         aria-label={canOpen ? `Open export preview at ${dimensionLabel}` : 'Preview is not ready'}
       >
@@ -62,7 +61,7 @@ export function ExportPreview({ previewUrl, previewStatus, previewSize, outputWi
       </button>
 
       {isOpen && previewUrl && (
-        <div className="export-preview-backdrop" role="presentation" onMouseDown={(event) => { if (event.currentTarget === event.target) setIsOpen(false); }}>
+        <div className="export-preview-backdrop" role="presentation" onMouseDown={(event) => { if (event.currentTarget === event.target) setOpenedPreviewUrl(null); }}>
           <section className="export-preview-modal" role="dialog" aria-modal="true" aria-labelledby="export-preview-title">
             <header className="export-preview-modal-header">
               <div>
@@ -70,7 +69,7 @@ export function ExportPreview({ previewUrl, previewStatus, previewSize, outputWi
                 <h2 id="export-preview-title">Final export</h2>
                 <p>Exactly what CropLab is preparing to export.</p>
               </div>
-              <button ref={closeButtonRef} type="button" className="export-preview-close" onClick={() => setIsOpen(false)} aria-label="Close export preview">
+              <button ref={closeButtonRef} type="button" className="export-preview-close" onClick={() => setOpenedPreviewUrl(null)} aria-label="Close export preview">
                 <X size={18} />
               </button>
             </header>

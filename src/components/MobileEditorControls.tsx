@@ -1,4 +1,4 @@
-import { Crop, Download, FlipHorizontal, History, MoreHorizontal, RotateCw, RotateCcw, Trash2, Undo2, Redo2, X, ZoomIn, ZoomOut, FileInput, RotateCcw as ResetIcon, StretchHorizontal, Lock, Unlock } from 'lucide-react';
+import { Crop, Download, FlipHorizontal, History, MoreHorizontal, RotateCw, RotateCcw, Trash2, Undo2, Redo2, X, ZoomIn, ZoomOut, FileInput, RotateCcw as ResetIcon, StretchHorizontal, Lock, Unlock, Maximize2 } from 'lucide-react';
 import { ASPECT_RATIOS } from '@/lib/image/constants';
 import { AspectRatioIcon } from '@/components/AspectRatioIcon';
 import type { EditorTool } from '@/components/EditorSidebar';
@@ -9,11 +9,11 @@ type Props = {
   onPanelChange: (panel: Panel) => void; onExport: () => void; onAspectChange: (value: number | null, label: string) => void; onCropReset: () => void;
   outputWidth: number | null; outputHeight: number | null; lockAspectRatio: boolean; isLoading: boolean;
   onWidthChange: (value: string) => void; onHeightChange: (value: string) => void; onLockToggle: () => void;
-  onRotateLeft: () => void; onRotateRight: () => void; onFlipHorizontal: () => void; onZoomPreset: (value: number) => void;
+  onRotateLeft: () => void; onRotateRight: () => void; onFlipHorizontal: () => void; onZoomPreset: (value: number) => void; onFit: () => void;
   onUndo: () => void; onRedo: () => void; onHistory: () => void; onReplace: () => void; onClear: () => void; onReset: () => void;
 };
 
-export function MobileEditorControls({ panel, selectedAspect, zoom, canUndo, canRedo, onPanelChange, onExport, onAspectChange, onCropReset, outputWidth, outputHeight, lockAspectRatio, isLoading, onWidthChange, onHeightChange, onLockToggle, onRotateLeft, onRotateRight, onFlipHorizontal, onZoomPreset, onUndo, onRedo, onHistory, onReplace, onClear, onReset }: Props) {
+export function MobileEditorControls({ panel, selectedAspect, zoom, canUndo, canRedo, onPanelChange, onExport, onAspectChange, onCropReset, outputWidth, outputHeight, lockAspectRatio, isLoading, onWidthChange, onHeightChange, onLockToggle, onRotateLeft, onRotateRight, onFlipHorizontal, onZoomPreset, onFit, onUndo, onRedo, onHistory, onReplace, onClear, onReset }: Props) {
   const closePanel = () => onPanelChange(null);
   return (
     <>
@@ -37,7 +37,7 @@ export function MobileEditorControls({ panel, selectedAspect, zoom, canUndo, can
                 <span className="mobile-quick-divider" />
         <button className="mobile-quick-button" onClick={() => onZoomPreset(zoom - 0.1)} aria-label="Zoom out"><ZoomOut size={16} /></button>
         <button className="mobile-quick-button" onClick={() => onZoomPreset(zoom + 0.1)} aria-label="Zoom in"><ZoomIn size={16} /></button>
-        <button className={`mobile-quick-value ${Math.abs(zoom - 0.5) < 0.01 ? 'active' : ''}`} onClick={() => onZoomPreset(0.5)} aria-label="Zoom to 50 percent">50%</button><button className={`mobile-quick-value ${Math.abs(zoom - 1) < 0.01 ? 'active' : ''}`} onClick={() => onZoomPreset(1)} aria-label="Zoom to 100 percent">100%</button><button className={`mobile-quick-value ${Math.abs(zoom - 2) < 0.01 ? 'active' : ''}`} onClick={() => onZoomPreset(2)} aria-label="Zoom to 200 percent">200%</button>
+        <button className="mobile-quick-value" onClick={onFit} aria-label="Fit image in canvas"><Maximize2 size={13} /></button><button className={`mobile-quick-value ${Math.abs(zoom - 0.5) < 0.01 ? 'active' : ''}`} onClick={() => onZoomPreset(0.5)} aria-label="Zoom to 50 percent">50%</button><button className={`mobile-quick-value ${Math.abs(zoom - 1) < 0.01 ? 'active' : ''}`} onClick={() => onZoomPreset(1)} aria-label="Zoom to 100 percent">100%</button><button className={`mobile-quick-value ${Math.abs(zoom - 2) < 0.01 ? 'active' : ''}`} onClick={() => onZoomPreset(2)} aria-label="Zoom to 200 percent">200%</button>
       </div>
 
       <nav className="mobile-bottom-bar" aria-label="Mobile editor navigation">

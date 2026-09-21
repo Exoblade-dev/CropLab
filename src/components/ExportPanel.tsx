@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Check, Download, FileImage, Info, X } from 'lucide-react';
 import { formatFileSize, getSizeReductionPercent } from '@/lib/image/export';
 import type { ExportFormatDefinition } from '@/lib/image/formats';
@@ -20,6 +20,8 @@ function getFormatCapability(format: ImageFormat): string { if (format === 'png'
 
 export function ExportPanel({ originalWidth, originalHeight, fileSize, cropWidth, cropHeight, outputWidth, outputHeight, format, quality, backgroundColor, estimatedSize, exportStatus, supportedFormats, isLoading, onFormatChange, onQualityChange, onQualityInteractionStart, onQualityCommit, onBackgroundChange, onDownload, open, onClose }: Props) {
   const closeButtonRef = useRef<HTMLButtonElement | null>(null);
+  const customColorRef = useRef<HTMLInputElement | null>(null);
+  const [customColor, setCustomColor] = useState('#e6e6e6');
 
   useEffect(() => {
     if (!open) return;
@@ -39,13 +41,20 @@ export function ExportPanel({ originalWidth, originalHeight, fileSize, cropWidth
   const backgroundMode = getBackgroundMode(backgroundColor);
   const currentPreset = QUALITY_PRESETS.find((preset) => Math.abs(preset.value - quality) < 0.005)?.label ?? 'Custom';
   const canDownload = Boolean(cropWidth && cropHeight && outputWidth && outputHeight && !isLoading);
+  const openCustomColorPicker = () => {
+    if (backgroundMode !== 'custom') {
+      setCustomColor('#e6e6e6');
+      onBackgroundChange('#e6e6e6');
+    }
+    window.requestAnimationFrame(() => customColorRef.current?.click());
+  };
 
   return (
     <div className="export-overlay" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
       <aside className="export-drawer" role="dialog" aria-modal="true" aria-labelledby="export-dialog-title">
         <header className="export-drawer-header">
           <div className="export-title-mark"><FileImage size={19} /></div>
-          <div><span className="export-kicker">Final step</span><h2 id="export-dialog-title">Export image</h2><p>Choose how the finished image should leave your device.</p></div>
+          <div><span className="export-kicker">Output</span><h2 id="export-dialog-title">Export image</h2><p>Choose how the finished image should leave your device.</p></div>
           <button ref={closeButtonRef} type="button" className="drawer-close" onClick={onClose} aria-label="Close export"><X size={18} /></button>
         </header>
 
@@ -56,7 +65,7 @@ export function ExportPanel({ originalWidth, originalHeight, fileSize, cropWidth
           </section>
 
           <section className="export-card">
-            <div className="export-card-heading"><div><span className="export-section-kicker">01</span><h3>Format</h3></div><span className="export-card-note">Browser encoded</span></div>
+            <div className="export-card-heading"><div><h3>Format</h3></div><span className="export-card-note">Browser encoded</span></div>
             <div className="format-choice-grid">
               {supportedFormats.map((item) => (
                 <button key={item.id} type="button" className={`format-choice ${format === item.id ? 'active' : ''}`} onClick={() => onFormatChange(item.id)} disabled={isLoading} aria-pressed={format === item.id}>
@@ -69,7 +78,7 @@ export function ExportPanel({ originalWidth, originalHeight, fileSize, cropWidth
 
           {activeFormat?.supportsQuality && (
             <section className="export-card">
-              <div className="export-card-heading"><div><span className="export-section-kicker">02</span><h3>Quality</h3></div><strong className="export-value">{qualityPercent}%</strong></div>
+              <div className="export-card-heading"><div><h3>Quality</h3></div><strong className="export-value">{qualityPercent}%</strong></div>
               <input className="export-quality-slider" aria-label="Quality" type="range" min="0.1" max="1" step="0.05" value={quality} onChange={(event) => onQualityChange(Number(event.target.value))} onPointerDown={onQualityInteractionStart} onPointerUp={onQualityCommit} onKeyUp={onQualityCommit} disabled={isLoading} />
               <div className="quality-scale"><span>Smaller file</span><span>Maximum detail</span></div>
               <div className="quality-presets">{QUALITY_PRESETS.map((preset) => <button key={preset.label} type="button" className={currentPreset === preset.label ? 'active' : ''} onClick={() => onQualityChange(preset.value)} disabled={isLoading}>{preset.label}</button>)}</div>
@@ -78,10 +87,10 @@ export function ExportPanel({ originalWidth, originalHeight, fileSize, cropWidth
 
           {activeFormat?.supportsBackground && (
             <section className="export-card">
-              <div className="export-card-heading"><div><span className="export-section-kicker">03</span><h3>JPEG background</h3></div><span className="export-card-note">Transparency</span></div>
+              <div className="export-card-heading"><div><h3>JPEG background</h3></div><span className="export-card-note">Transparency</span></div>
               <p className="export-help">JPEG cannot store transparent pixels, so they are filled before encoding.</p>
-              <div className="background-choice-row"><button type="button" className={backgroundMode === 'white' ? 'active' : ''} onClick={() => onBackgroundChange('#ffffff')} disabled={isLoading}><span className="swatch white" /> White</button><button type="button" className={backgroundMode === 'black' ? 'active' : ''} onClick={() => onBackgroundChange('#000000')} disabled={isLoading}><span className="swatch black" /> Black</button><button type="button" className={backgroundMode === 'custom' ? 'active' : ''} onClick={() => onBackgroundChange(backgroundMode === 'custom' ? backgroundColor : '#ffffff')} disabled={isLoading}><span className="swatch custom" style={{ backgroundColor }} /> Custom</button></div>
-              {backgroundMode === 'custom' && <div className="custom-color-row"><input id="jpeg-background" type="color" value={backgroundColor} onChange={(event) => onBackgroundChange(event.target.value)} disabled={isLoading} aria-label="Custom JPEG background color" /><strong>{backgroundColor.toUpperCase()}</strong></div>}
+              <div className="background-choice-row"><button type="button" className={backgroundMode === 'white' ? 'active' : ''} onClick={() => onBackgroundChange('#ffffff')} disabled={isLoading}><span className="swatch white" /> White</button><button type="button" className={backgroundMode === 'black' ? 'active' : ''} onClick={() => onBackgroundChange('#000000')} disabled={isLoading}><span className="swatch black" /> Black</button><button type="button" className={backgroundMode === 'custom' ? 'active' : ''} onClick={openCustomColorPicker} disabled={isLoading}><span className="swatch custom" style={{ backgroundColor: backgroundMode === 'custom' ? backgroundColor : customColor }} /> Custom</button></div>
+              <div className="custom-color-row"><input ref={customColorRef} id="jpeg-background" type="color" value={backgroundMode === 'custom' ? backgroundColor : customColor} onChange={(event) => { setCustomColor(event.target.value); onBackgroundChange(event.target.value); }} disabled={isLoading} aria-label="Custom JPEG background color" /><strong>{(backgroundMode === 'custom' ? backgroundColor : customColor).toUpperCase()}</strong><span>Click Custom to choose a color.</span></div>
             </section>
           )}
 
